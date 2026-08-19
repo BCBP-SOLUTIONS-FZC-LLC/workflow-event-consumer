@@ -1,0 +1,41 @@
+# The queue/target/routing registry this service loads at startup (see
+# internal/topology). Copy this file, fill in real queue URLs and target
+# addresses, and point TOPOLOGY_CONFIG_PATH at it.
+#
+# No secrets belong in this file — a target's addr is not sensitive, and its
+# own INTERNAL_API_TOKEN is only ever referenced by the environment variable
+# name that holds it (tokenEnv), never stored here.
+#
+# Adding a queue, a downstream service, or a routing rule is a change to
+# this file only — no Go code change, no rebuild, just a redeploy.
+
+version: 1
+
+targets:
+  - name: execution
+    addr: http://execution-service.internal
+    tokenEnv: EXECUTION_SERVICE_TOKEN
+  - name: definition
+    addr: http://definition-service.internal
+    tokenEnv: DEFINITION_SERVICE_TOKEN
+
+queues:
+  - name: membership
+    url: https://sqs.us-east-1.amazonaws.com/000000000000/membership-workflow-q
+  - name: user
+    url: https://sqs.us-east-1.amazonaws.com/000000000000/user-wf-q
+  - name: template
+    url: https://sqs.us-east-1.amazonaws.com/000000000000/wf-execution-sync-q
+
+# An event type absent from this table falls back to broadcasting to every
+# declared target above — a forward-compatibility safety net, not the
+# steady-state behavior. Keep this in sync with each downstream service's
+# own event catalogue; see docs/runbook.md.
+routes:
+  DelegationStarted: [execution]
+  DelegationEnded: [execution]
+  TenantStateChanged: [execution]
+  UserDeleted: [execution]
+  UserAvailabilityChanged: [execution]
+  workflow.template.published: [execution]
+  DepartmentMembershipRevoked: [definition]

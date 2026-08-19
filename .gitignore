@@ -1,0 +1,11 @@
+/bin/
+/.tools/
+/.coverage/
+.env
+.go_private_token
+*.log
+
+# Ops-provided, environment-specific — config/topology.example.yaml is the
+# checked-in template; config/topology.local.yaml (docker-compose) is
+# checked in too since it only points at throwaway local containers.
+/config/topology.yaml

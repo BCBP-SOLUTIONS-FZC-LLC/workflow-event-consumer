@@ -1,0 +1,8 @@
+.git
+.github
+.tools
+.coverage
+bin
+*.md
+.env
+.go_private_token

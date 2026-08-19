@@ -1,0 +1,28 @@
+# queue URLs point at the compose-local LocalStack container,
+# and target addrs point at the two mock-downstream containers.
+version: 1
+
+targets:
+  - name: execution
+    addr: http://mock-execution:8090
+    tokenEnv: EXECUTION_SERVICE_TOKEN
+  - name: definition
+    addr: http://mock-definition:8090
+    tokenEnv: DEFINITION_SERVICE_TOKEN
+
+queues:
+  - name: membership
+    url: http://localstack:4566/000000000000/membership-workflow-q
+  - name: user
+    url: http://localstack:4566/000000000000/user-wf-q
+  - name: template
+    url: http://localstack:4566/000000000000/wf-execution-sync-q
+
+routes:
+  DelegationStarted: [execution]
+  DelegationEnded: [execution]
+  TenantStateChanged: [execution]
+  UserDeleted: [execution]
+  UserAvailabilityChanged: [execution]
+  workflow.template.published: [execution]
+  DepartmentMembershipRevoked: [definition]
