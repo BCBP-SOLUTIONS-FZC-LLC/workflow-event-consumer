@@ -1,0 +1,87 @@
+services:
+  localstack:
+    image: localstack/localstack:3
+    container_name: workflow-events-consumer-localstack
+    ports:
+      # Host port offset from 4566 to avoid clashing with other stacks'
+      # LocalStack containers running locally — internal traffic between
+      # compose services always uses the container's own 4566.
+      - "4568:4566"
+    environment:
+      SERVICES: sns,sqs
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./scripts/init-localstack.sh:/etc/localstack/init/ready.d/init-localstack.sh
+    healthcheck:
+      test: ["CMD", "awslocal", "sqs", "list-queues"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  mock-execution:
+    build:
+      context: .
+      target: mock-downstream
+      secrets:
+        - go_private_token
+    container_name: workflow-events-consumer-mock-execution
+    environment:
+      NAME: mock-execution
+      PORT: "8090"
+    ports:
+      - "8090:8090"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O-", "http://localhost:8090/healthz"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  mock-definition:
+    build:
+      context: .
+      target: mock-downstream
+      secrets:
+        - go_private_token
+    container_name: workflow-events-consumer-mock-definition
+    environment:
+      NAME: mock-definition
+      PORT: "8090"
+    ports:
+      - "8091:8090"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O-", "http://localhost:8090/healthz"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build:
+      context: .
+      target: event-consumer
+      secrets:
+        - go_private_token
+    container_name: workflow-events-consumer-app
+    environment:
+      APP_ENV: dev
+      AWS_REGION: us-east-1
+      AWS_ENDPOINT_URL: http://localstack:4566
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+      TOPOLOGY_CONFIG_PATH: /config/topology.local.yaml
+      EXECUTION_SERVICE_TOKEN: dev-token
+      DEFINITION_SERVICE_TOKEN: dev-token
+    volumes:
+      - ./config/topology.local.yaml:/config/topology.local.yaml:ro
+    ports:
+      - "8082:8082"
+    depends_on:
+      localstack:
+        condition: service_healthy
+      mock-execution:
+        condition: service_healthy
+      mock-definition:
+        condition: service_healthy
+
+secrets:
+  go_private_token:
+    file: ${GO_PRIVATE_TOKEN_FILE:-./.go_private_token}
