@@ -1,0 +1,83 @@
+# Runbook — workflow-events-consumer
+
+## Event routing catalogue
+
+[`config/topology.yaml`](../config/topology.example.yaml)'s `routes` map is
+the single source of truth for which downstream service a given event type
+is forwarded to — the same file also declares every queue and every
+downstream target (see [ARCHITECTURE.md](../ARCHITECTURE.md#queues-and-targets-also-config-driven)).
+Keep `routes` in sync with execution_service's and definition_service's own
+event catalogues — a type absent here falls back to broadcasting to every
+declared target, which is a safety net, not a substitute for updating this
+table when a new event type is added upstream.
+
+| Event type | Target |
+| --- | --- |
+| `DelegationStarted` | execution |
+| `DelegationEnded` | execution |
+| `TenantStateChanged` | execution |
+| `UserDeleted` | execution |
+| `UserAvailabilityChanged` | execution |
+| `workflow.template.published` | execution |
+| `DepartmentMembershipRevoked` | definition |
+| *(anything else)* | broadcast to all targets |
+
+## Alerting signals
+
+- `workflow_events_consumer_forward_total{target,result="error"}` sustained
+  at a nonzero rate — the named downstream service is failing or unreachable.
+  Messages for that target's queue will keep redelivering until it recovers
+  or the queue's `maxReceiveCount` is exhausted.
+- `workflow_events_consumer_handler_duration_seconds{queue}` p99 climbing —
+  either a downstream target is slow, or queue depth is outpacing
+  `CONSUMER_CONCURRENCY`.
+- Corroborate against the downstream service's own
+  `internal_events_ingest_total{event_type,result}` metric — a spike in
+  `bad_payload`/`decode_failed` there points at a producer-side contract
+  break, not this bridge.
+
+## A message is stuck redelivering
+
+1. Check `workflow_events_consumer_forward_total` to identify which target is
+   failing.
+2. Check that target's own health/logs — a `5xx` there is expected to cause
+   redelivery; that's by design (see [ARCHITECTURE.md](../ARCHITECTURE.md)'s
+   ack-semantics section).
+3. If the target is healthy but consistently returns `4xx` for one message,
+   that message will exhaust `maxReceiveCount` (5) and land in that queue's
+   dead-letter queue — this bridge has no way to short-circuit a `4xx`
+   into an immediate DLQ move, only SQS's own redrive policy does that.
+
+## Replaying a dead-lettered message
+
+This bridge does not own the queues or their redrive policies (infra-owned).
+Once the underlying cause is fixed, redrive from the DLQ back to the source
+queue using the AWS CLI or console — this bridge picks it up exactly like
+any other message on its next poll.
+
+```bash
+aws sqs start-message-move-task \
+  --source-arn <dlq-arn> \
+  --destination-arn <source-queue-arn>
+```
+
+## Adding a new event type
+
+1. Confirm which downstream service(s) actually need it — check that
+   service's own `POST /internal/events` handler and event catalogue.
+2. Add an entry to `routes` in `config/topology.yaml` (and
+   `config/topology.example.yaml`/`config/topology.local.yaml` for the
+   checked-in reference/dev copies). No Go code change or rebuild needed —
+   redeploy with the updated file.
+3. If it changes cross-service behavior meaningfully, add a LocalStack
+   integration test case (see `test/integration/localstack_flow_test.go`
+   for the pattern) and update its `testRoutes` fixture map.
+4. Update the table above.
+
+## Adding a new queue or downstream target
+
+Same file, same principle: add an entry to `queues` or `targets` in
+`config/topology.yaml`. A new target also needs its token's environment
+variable set (named by that entry's `tokenEnv`) wherever secrets are
+injected for the environment (see
+[README.md](../README.md#configuration)). No Go code change.
