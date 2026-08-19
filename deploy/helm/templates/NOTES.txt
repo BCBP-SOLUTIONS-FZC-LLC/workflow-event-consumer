@@ -1,0 +1,15 @@
+{{ include "workflow-events-consumer.fullname" . }} deployed.
+
+Topology: {{ len .Values.topology.targets }} target(s), {{ len .Values.topology.queues }} queue(s).
+
+Check status:
+  kubectl get pods -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
+  kubectl logs -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }} -f
+
+{{- if not .Values.existingSecret }}
+
+WARNING: secretValues are being rendered directly into a Kubernetes Secret
+via this chart. In production, set `existingSecret` to a Secret name managed
+by ESO/Secrets Manager CSI/Sealed Secrets instead — secretValues end up in
+Helm release history as plain base64.
+{{- end }}

@@ -1,0 +1,38 @@
+groups:
+  - name: workflow-events-consumer
+    rules:
+      - alert: WorkflowEventsConsumerForwardErrors
+        expr: |
+          sum by (target) (rate(workflow_events_consumer_forward_total{result="error"}[5m])) > 0
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "workflow-events-consumer forwarding errors to {{ $labels.target }}"
+          description: >
+            Sustained forward failures to target "{{ $labels.target }}" for 10m —
+            that downstream service is failing or unreachable; messages for its
+            routed queue(s) will keep redeliving until it recovers or maxReceiveCount
+            is exhausted. See docs/runbook.md.
+
+      - alert: WorkflowEventsConsumerHandlerLatencyHigh
+        expr: |
+          histogram_quantile(0.99, sum by (le, queue) (rate(workflow_events_consumer_handler_duration_seconds_bucket[5m]))) > 5
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "workflow-events-consumer p99 handler latency high on queue {{ $labels.queue }}"
+          description: >
+            p99 handler duration for queue "{{ $labels.queue }}" has exceeded 5s for
+            10m — either a downstream target is slow, or queue depth is outpacing
+            CONSUMER_CONCURRENCY.
+
+      - alert: WorkflowEventsConsumerDown
+        expr: up{job="workflow-events-consumer"} == 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "workflow-events-consumer is down"
+          description: "No successful /metrics scrape for 5m — the bridge may not be consuming any queue."

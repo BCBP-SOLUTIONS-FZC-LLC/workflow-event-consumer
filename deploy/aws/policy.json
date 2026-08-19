@@ -1,0 +1,20 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "WorkflowEventsConsumerSQSConsume",
+      "Effect": "Allow",
+      "Action": [
+        "sqs:ReceiveMessage",
+        "sqs:DeleteMessage",
+        "sqs:ChangeMessageVisibility",
+        "sqs:GetQueueAttributes"
+      ],
+      "Resource": [
+        "arn:aws:sqs:*:*:membership-workflow-q",
+        "arn:aws:sqs:*:*:user-wf-q",
+        "arn:aws:sqs:*:*:wf-execution-sync-q"
+      ]
+    }
+  ]
+}

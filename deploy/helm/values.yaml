@@ -1,0 +1,89 @@
+image:
+  repository: ghcr.io/bcbp-solutions-fzc-llc/workflow-events-consumer
+  tag: ""  # defaults to .Chart.AppVersion
+  pullPolicy: IfNotPresent
+
+replicaCount: 2
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi
+
+autoscaling:
+  enabled: false
+  minReplicas: 2
+  maxReplicas: 6
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 75
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+service:
+  port: 8082
+
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}  # e.g. eks.amazonaws.com/role-arn: arn:aws:iam::<account>:role/workflow-events-consumer
+
+# Non-secret settings — merged with .env below into the container's environment.
+env:
+  APP_ENV: prod
+  AWS_REGION: us-east-1
+  TOPOLOGY_CONFIG_PATH: /etc/event-consumer/topology.yaml
+  CONSUMER_CONCURRENCY: "10"
+  VISIBILITY_TIMEOUT: 30s
+  DRAIN_TIMEOUT: 30s
+  FORWARD_TIMEOUT: 5s
+
+# The queue/target/routing registry — rendered verbatim into a ConfigMap and
+# mounted at env.TOPOLOGY_CONFIG_PATH. Same shape as config/topology.example.yaml.
+# Override per-environment via a values-<env>.yaml file.
+topology:
+  version: 1
+  targets:
+    - name: execution
+      addr: http://execution-service.internal
+      tokenEnv: EXECUTION_SERVICE_TOKEN
+    - name: definition
+      addr: http://definition-service.internal
+      tokenEnv: DEFINITION_SERVICE_TOKEN
+  queues:
+    - name: membership
+      url: https://sqs.us-east-1.amazonaws.com/000000000000/membership-workflow-q
+    - name: user
+      url: https://sqs.us-east-1.amazonaws.com/000000000000/user-wf-q
+    - name: template
+      url: https://sqs.us-east-1.amazonaws.com/000000000000/wf-execution-sync-q
+  routes:
+    DelegationStarted: [execution]
+    DelegationEnded: [execution]
+    TenantStateChanged: [execution]
+    UserDeleted: [execution]
+    UserAvailabilityChanged: [execution]
+    workflow.template.published: [execution]
+    DepartmentMembershipRevoked: [definition]
+
+# Real values MUST come from an existingSecret in production — secretValues
+# below end up in Helm release history as plain base64 if used directly.
+# Keys here are read as env vars, matching each topology.yaml target's tokenEnv.
+existingSecret: ""
+secretValues:
+  EXECUTION_SERVICE_TOKEN: ""
+  DEFINITION_SERVICE_TOKEN: ""
+
+networkPolicy:
+  enabled: true
+  monitoringNamespace: monitoring
+  additionalEgressRules: []
+
+serviceMonitor:
+  enabled: false
+  namespace: ""
+  interval: 30s
