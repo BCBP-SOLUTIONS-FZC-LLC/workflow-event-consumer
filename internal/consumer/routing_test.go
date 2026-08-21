@@ -10,18 +10,18 @@ import (
 func TestRouter_KnownTypesResolveToTheirOwnRoute(t *testing.T) {
 	all := []string{"execution", "definition"}
 	routes := map[string][]string{
-		"DelegationStarted":           {"execution"},
-		"DepartmentMembershipRevoked": {"definition"},
+		"delegation.started":            {"execution"},
+		"department.membership.revoked": {"definition"},
 	}
 	router := NewRouter(routes, all)
 
-	assert.Equal(t, []string{"execution"}, router.Resolve("DelegationStarted"))
-	assert.Equal(t, []string{"definition"}, router.Resolve("DepartmentMembershipRevoked"))
+	assert.Equal(t, []string{"execution"}, router.Resolve("delegation.started"))
+	assert.Equal(t, []string{"definition"}, router.Resolve("department.membership.revoked"))
 }
 
 func TestRouter_UnknownTypeFallsBackToAll(t *testing.T) {
 	all := []string{"execution", "definition"}
-	router := NewRouter(map[string][]string{"DelegationStarted": {"execution"}}, all)
+	router := NewRouter(map[string][]string{"delegation.started": {"execution"}}, all)
 
 	got := router.Resolve("SomeFutureEventType")
 	sort.Strings(got)

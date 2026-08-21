@@ -13,13 +13,13 @@ table when a new event type is added upstream.
 
 | Event type | Target |
 | --- | --- |
-| `DelegationStarted` | execution |
-| `DelegationEnded` | execution |
-| `TenantStateChanged` | execution |
-| `UserDeleted` | execution |
-| `UserAvailabilityChanged` | execution |
+| `delegation.started` | execution |
+| `delegation.ended` | execution |
+| `tenant.state.changed` | execution |
+| `user.deleted` | execution |
+| `user.availability.changed` | execution |
 | `workflow.template.published` | execution |
-| `DepartmentMembershipRevoked` | definition |
+| `department.membership.revoked` | definition |
 | *(anything else)* | broadcast to all targets |
 
 ## Alerting signals

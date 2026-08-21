@@ -32,9 +32,9 @@ func setLocalStackCredentials(t *testing.T) {
 // testRoutes mirrors config/topology.example.yaml's routing table for the
 // event types these tests actually publish.
 var testRoutes = map[string][]string{
-	"DelegationStarted":           {"execution"},
-	"UserDeleted":                 {"execution"},
-	"DepartmentMembershipRevoked": {"definition"},
+	"delegation.started":            {"execution"},
+	"user.deleted":                  {"execution"},
+	"department.membership.revoked": {"definition"},
 }
 
 func buildConsumer(t *testing.T, ls *fixtures.LocalStackSNSSQS, queueName, queueURL string, fwd *forwarder.Forwarder, visibilityTimeout time.Duration) events.Consumer {
@@ -85,9 +85,9 @@ func TestLocalStackFlow_RoutesToOnlyExecution(t *testing.T) {
 	membershipQueue := ls.Queues["iam-membership-events"]
 	startConsumer(t, buildConsumer(t, ls, "membership", membershipQueue.QueueURL, fwd, 5*time.Second))
 
-	// DelegationStarted is execution-only per config/topology.example.yaml/testRoutes —
+	// delegation.started is execution-only per config/topology.example.yaml/testRoutes —
 	// definition_service should never see it.
-	env := events.NewEnvelope("DelegationStarted", "iam", json.RawMessage(`{"delegate_id":"u-1"}`))
+	env := events.NewEnvelope("delegation.started", "iam", json.RawMessage(`{"delegate_id":"u-1"}`))
 	body, err := json.Marshal(env)
 	require.NoError(t, err)
 	ls.Publish(ctx, t, "iam-membership-events", body)
@@ -123,8 +123,8 @@ func TestLocalStackFlow_RoutesToOnlyDefinition(t *testing.T) {
 	membershipQueue := ls.Queues["iam-membership-events"]
 	startConsumer(t, buildConsumer(t, ls, "membership", membershipQueue.QueueURL, fwd, 5*time.Second))
 
-	// DepartmentMembershipRevoked is definition-only per config/topology.example.yaml/testRoutes.
-	env := events.NewEnvelope("DepartmentMembershipRevoked", "iam", json.RawMessage(`{"department_id":"d-1"}`))
+	// department.membership.revoked is definition-only per config/topology.example.yaml/testRoutes.
+	env := events.NewEnvelope("department.membership.revoked", "iam", json.RawMessage(`{"department_id":"d-1"}`))
 	body, err := json.Marshal(env)
 	require.NoError(t, err)
 	ls.Publish(ctx, t, "iam-membership-events", body)
@@ -180,7 +180,7 @@ func TestLocalStackFlow_OneTargetFailsBlocksAck(t *testing.T) {
 	defer exec.Close()
 	def := mocks.NewDownstream()
 	defer def.Close()
-	// UserDeleted is execution-only (testRoutes) — failing execution itself
+	// user.deleted is execution-only (testRoutes) — failing execution itself
 	// is the only way to exercise "redeliver until the resolved target succeeds".
 	exec.SetStatus(http.StatusInternalServerError)
 
@@ -192,7 +192,7 @@ func TestLocalStackFlow_OneTargetFailsBlocksAck(t *testing.T) {
 	userQueue := ls.Queues["iam-user-events"]
 	startConsumer(t, buildConsumer(t, ls, "user", userQueue.QueueURL, fwd, 2*time.Second))
 
-	env := events.NewEnvelope("UserDeleted", "iam", json.RawMessage(`{"user_id":"u-2"}`))
+	env := events.NewEnvelope("user.deleted", "iam", json.RawMessage(`{"user_id":"u-2"}`))
 	body, err := json.Marshal(env)
 	require.NoError(t, err)
 	ls.Publish(ctx, t, "iam-user-events", body)
