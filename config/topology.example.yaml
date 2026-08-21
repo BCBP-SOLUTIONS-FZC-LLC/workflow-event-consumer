@@ -18,6 +18,9 @@ targets:
   - name: definition
     addr: http://definition-service.internal
     tokenEnv: DEFINITION_SERVICE_TOKEN
+  - name: workflow-stream-gateway
+    addr: http://workflow-stream-gateway.internal
+    tokenEnv: WORKFLOW_STREAM_GATEWAY_TOKEN
 
 queues:
   - name: membership
@@ -26,11 +29,19 @@ queues:
     url: https://sqs.us-east-1.amazonaws.com/000000000000/user-wf-q
   - name: template
     url: https://sqs.us-east-1.amazonaws.com/000000000000/wf-execution-sync-q
+  - name: dashboard
+    url: https://sqs.us-east-1.amazonaws.com/000000000000/wf-workflow-dash-q
 
 # An event type absent from this table falls back to broadcasting to every
 # declared target above — a forward-compatibility safety net, not the
 # steady-state behavior. Keep this in sync with each downstream service's
 # own event catalogue; see docs/runbook.md.
+#
+# The 12 workflow.task.*/workflow.instance.* routes below feed
+# workflow-stream-gateway (design/LLD/workflow_stream_gateway.md §3.1) —
+# the wf-workflow-dash-q SNS filter-policy provisioning that actually
+# delivers those 12 types onto the `dashboard` queue above is
+# infra-provisioning tracked in that LLD's Appendix B, not done by this file.
 routes:
   delegation.started: [execution]
   delegation.ended: [execution]
@@ -39,3 +50,15 @@ routes:
   user.availability.changed: [execution]
   workflow.template.published: [execution]
   department.membership.revoked: [definition]
+  workflow.task.created: [workflow-stream-gateway]
+  workflow.task.completed: [workflow-stream-gateway]
+  workflow.task.deferred: [workflow-stream-gateway]
+  workflow.task.reassigned: [workflow-stream-gateway]
+  workflow.task.sla-warning: [workflow-stream-gateway]
+  workflow.task.sla-breached: [workflow-stream-gateway]
+  workflow.instance.started: [workflow-stream-gateway]
+  workflow.instance.paused: [workflow-stream-gateway]
+  workflow.instance.resumed: [workflow-stream-gateway]
+  workflow.instance.cancelled: [workflow-stream-gateway]
+  workflow.instance.terminated: [workflow-stream-gateway]
+  workflow.instance.finished: [workflow-stream-gateway]
