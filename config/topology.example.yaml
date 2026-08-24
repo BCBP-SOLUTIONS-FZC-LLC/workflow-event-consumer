@@ -37,11 +37,14 @@ queues:
 # steady-state behavior. Keep this in sync with each downstream service's
 # own event catalogue; see docs/runbook.md.
 #
-# The 12 workflow.task.*/workflow.instance.* routes below feed
+# The 11 workflow.task.*/workflow.instance.* routes below feed
 # workflow-stream-gateway (design/LLD/workflow_stream_gateway.md §3.1) —
 # the wf-workflow-dash-q SNS filter-policy provisioning that actually
-# delivers those 12 types onto the `dashboard` queue above is
+# delivers those 11 types onto the `dashboard` queue above is
 # infra-provisioning tracked in that LLD's Appendix B, not done by this file.
+# workflow.instance.started is deliberately absent (decided 2026-08-24):
+# execution_service's own asyncapi.yaml documents it as not routed here —
+# the creating client already knows synchronously.
 routes:
   delegation.started: [execution]
   delegation.ended: [execution]
@@ -56,7 +59,6 @@ routes:
   workflow.task.reassigned: [workflow-stream-gateway]
   workflow.task.sla-warning: [workflow-stream-gateway]
   workflow.task.sla-breached: [workflow-stream-gateway]
-  workflow.instance.started: [workflow-stream-gateway]
   workflow.instance.paused: [workflow-stream-gateway]
   workflow.instance.resumed: [workflow-stream-gateway]
   workflow.instance.cancelled: [workflow-stream-gateway]
