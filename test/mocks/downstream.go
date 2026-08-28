@@ -19,6 +19,7 @@ type Downstream struct {
 	mu       sync.Mutex
 	received []events.Envelope[json.RawMessage]
 	tokens   []string
+	paths    []string
 	status   int
 }
 
@@ -36,6 +37,7 @@ func (d *Downstream) handle(w http.ResponseWriter, r *http.Request) {
 	d.mu.Lock()
 	d.received = append(d.received, env)
 	d.tokens = append(d.tokens, r.Header.Get("x-internal-token"))
+	d.paths = append(d.paths, r.URL.Path)
 	status := d.status
 	d.mu.Unlock()
 
@@ -77,4 +79,13 @@ func (d *Downstream) LastToken() string {
 		return ""
 	}
 	return d.tokens[len(d.tokens)-1]
+}
+
+func (d *Downstream) LastPath() string {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if len(d.paths) == 0 {
+		return ""
+	}
+	return d.paths[len(d.paths)-1]
 }

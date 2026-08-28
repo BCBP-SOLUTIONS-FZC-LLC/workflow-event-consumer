@@ -22,6 +22,30 @@ table when a new event type is added upstream.
 | `department.membership.revoked` | definition |
 | *(anything else)* | broadcast to all targets |
 
+## Type-scoped forwarding subpaths (execution_service only)
+
+Forwarding to the `execution` target no longer always POSTs to
+`/internal/events`. `internal/forwarder/category.go`'s `category` map assigns
+each of execution_service's 6 routed event types to one of 4 categories, and
+`Target.forward` builds `/events/<category>` for anything in that map:
+
+| Event type | Category / subpath |
+| --- | --- |
+| `delegation.started`, `delegation.ended` | `delegation` → `/events/delegation` |
+| `user.deleted`, `user.availability.changed` | `user-profile` → `/events/user-profile` |
+| `tenant.state.changed` | `tenant` → `/events/tenant` |
+| `workflow.template.published` | `workflow-template` → `/events/workflow-template` |
+
+Every other target (`definition`, `workflow-stream-gateway`) and any event
+type absent from this map still gets the legacy `/internal/events` path —
+execution_service keeps that route registered as an unconditional catch-all,
+so an unmapped type is never dropped. **This map is Go code, not
+`topology.yaml`** — deliberately not config-driven, because a mismatched edit
+here (a category with no matching subpath registered on the execution_service
+side) would 404 instead of falling back safely. Adding or changing a category
+means updating both this map and execution_service's
+`RegisterInternalEventsRoutes` in the same change.
+
 ## Alerting signals
 
 - `workflow_events_consumer_forward_total{target,result="error"}` sustained
@@ -73,6 +97,11 @@ aws sqs start-message-move-task \
    integration test case (see `test/integration/localstack_flow_test.go`
    for the pattern) and update its `testRoutes` fixture map.
 4. Update the table above.
+5. If the new type routes to `execution` and belongs to one of the 4
+   categories above (or a new one), add it to `internal/forwarder/category.go`'s
+   `category` map **and** register/extend the matching subpath in
+   execution_service's `RegisterInternalEventsRoutes` — this one step is a
+   real Go code change on both sides, unlike step 2 above.
 
 ## Adding a new queue or downstream target
 

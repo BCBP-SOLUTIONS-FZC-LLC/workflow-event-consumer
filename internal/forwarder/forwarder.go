@@ -29,7 +29,7 @@ func (f *Forwarder) Names() []string {
 	return names
 }
 
-func (f *Forwarder) Forward(ctx context.Context, queue string, targetNames []string, body []byte) error {
+func (f *Forwarder) Forward(ctx context.Context, queue string, targetNames []string, eventType string, body []byte) error {
 	var (
 		wg   sync.WaitGroup
 		mu   sync.Mutex
@@ -44,7 +44,7 @@ func (f *Forwarder) Forward(ctx context.Context, queue string, targetNames []str
 		wg.Add(1)
 		go func(t *Target) {
 			defer wg.Done()
-			err := t.forward(ctx, body)
+			err := t.forward(ctx, eventType, body)
 			result := "ok"
 			if err != nil {
 				result = "error"

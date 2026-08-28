@@ -30,7 +30,7 @@ func TestForward_BothOK(t *testing.T) {
 
 	fwd := New(NewTarget("a", a.URL(), "token-a", time.Second), NewTarget("b", b.URL(), "token-b", time.Second))
 
-	err := fwd.Forward(context.Background(), "membership", []string{"a", "b"}, []byte(`{"id":"1"}`))
+	err := fwd.Forward(context.Background(), "membership", []string{"a", "b"}, "test.event", []byte(`{"id":"1"}`))
 	require.NoError(t, err)
 	require.Equal(t, 1, a.Count())
 	require.Equal(t, 1, b.Count())
@@ -48,7 +48,7 @@ func TestForward_OnlyNamedTargetCalled(t *testing.T) {
 
 	fwd := New(NewTarget("a", a.URL(), "token-a", time.Second), NewTarget("b", b.URL(), "token-b", time.Second))
 
-	err := fwd.Forward(context.Background(), "membership", []string{"a"}, []byte(`{"id":"1"}`))
+	err := fwd.Forward(context.Background(), "membership", []string{"a"}, "test.event", []byte(`{"id":"1"}`))
 	require.NoError(t, err)
 	assert.Equal(t, 1, a.Count())
 	assert.Equal(t, 0, b.Count(), "target b should never have been called")
@@ -63,7 +63,7 @@ func TestForward_OneFails(t *testing.T) {
 
 	fwd := New(NewTarget("a", a.URL(), "token-a", time.Second), NewTarget("b", b.URL(), "token-b", time.Second))
 
-	err := fwd.Forward(context.Background(), "membership", []string{"a", "b"}, []byte(`{"id":"1"}`))
+	err := fwd.Forward(context.Background(), "membership", []string{"a", "b"}, "test.event", []byte(`{"id":"1"}`))
 	assert.Error(t, err)
 }
 
@@ -76,21 +76,21 @@ func TestForward_OneBadRequest(t *testing.T) {
 
 	fwd := New(NewTarget("a", a.URL(), "token-a", time.Second), NewTarget("b", b.URL(), "token-b", time.Second))
 
-	err := fwd.Forward(context.Background(), "membership", []string{"a", "b"}, []byte(`{"id":"1"}`))
+	err := fwd.Forward(context.Background(), "membership", []string{"a", "b"}, "test.event", []byte(`{"id":"1"}`))
 	assert.Error(t, err)
 }
 
 func TestForward_UnknownTarget(t *testing.T) {
 	fwd := New(NewTarget("a", "http://unused", "token", time.Second))
 
-	err := fwd.Forward(context.Background(), "membership", []string{"nonexistent"}, []byte(`{}`))
+	err := fwd.Forward(context.Background(), "membership", []string{"nonexistent"}, "test.event", []byte(`{}`))
 	assert.Error(t, err)
 }
 
 func TestForward_MalformedTargetURL(t *testing.T) {
 	fwd := New(NewTarget("bad", "http://example.com\x7f", "token", time.Second))
 
-	err := fwd.Forward(context.Background(), "membership", []string{"bad"}, []byte(`{}`))
+	err := fwd.Forward(context.Background(), "membership", []string{"bad"}, "test.event", []byte(`{}`))
 	assert.Error(t, err)
 }
 
@@ -103,7 +103,7 @@ func TestForward_TimeoutEnforced(t *testing.T) {
 
 	fwd := New(NewTarget("slow", slow.URL, "token", 20*time.Millisecond))
 
-	err := fwd.Forward(context.Background(), "membership", []string{"slow"}, []byte(`{}`))
+	err := fwd.Forward(context.Background(), "membership", []string{"slow"}, "test.event", []byte(`{}`))
 	assert.Error(t, err)
 }
 
@@ -134,13 +134,35 @@ func TestForward_Concurrent(t *testing.T) {
 	start := time.Now()
 	go func() {
 		defer wg.Done()
-		_ = fwd.Forward(context.Background(), "membership", []string{"a", "b"}, []byte(`{}`))
+		_ = fwd.Forward(context.Background(), "membership", []string{"a", "b"}, "test.event", []byte(`{}`))
 	}()
 	wg.Wait()
 	elapsed := time.Since(start)
 
 	assert.Equal(t, int32(2), maxInFlight, "both targets should be called concurrently")
 	assert.Less(t, elapsed, 100*time.Millisecond)
+}
+
+func TestForward_MappedTypeUsesCategoryPath(t *testing.T) {
+	a := mocks.NewDownstream()
+	defer a.Close()
+
+	fwd := New(NewTarget("execution", a.URL(), "token", time.Second))
+
+	err := fwd.Forward(context.Background(), "membership", []string{"execution"}, "delegation.started", []byte(`{}`))
+	require.NoError(t, err)
+	assert.Equal(t, "/events/delegation", a.LastPath())
+}
+
+func TestForward_UnmappedTypeFallsBackToLegacyPath(t *testing.T) {
+	a := mocks.NewDownstream()
+	defer a.Close()
+
+	fwd := New(NewTarget("definition", a.URL(), "token", time.Second))
+
+	err := fwd.Forward(context.Background(), "membership", []string{"definition"}, "department.membership.revoked", []byte(`{}`))
+	require.NoError(t, err)
+	assert.Equal(t, "/internal/events", a.LastPath())
 }
 
 func TestNames(t *testing.T) {

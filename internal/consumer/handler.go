@@ -22,7 +22,7 @@ func MakeHandler(queue string, fwd *forwarder.Forwarder, router Router) events.H
 		targets := router.Resolve(env.Type)
 
 		result := "ok"
-		if err := fwd.Forward(ctx, queue, targets, body); err != nil {
+		if err := fwd.Forward(ctx, queue, targets, env.Type, body); err != nil {
 			result = "error"
 			observability.HandlerDurationSeconds.WithLabelValues(queue, result).Observe(time.Since(start).Seconds())
 			return err
