@@ -13,8 +13,6 @@ queues:
     url: http://localstack:4566/000000000000/membership-workflow-q
   - name: user
     url: http://localstack:4566/000000000000/user-wf-q
-  - name: template
-    url: http://localstack:4566/000000000000/wf-execution-sync-q
 
 routes:
   delegation.started: [execution]
@@ -22,5 +20,4 @@ routes:
   tenant.state.changed: [execution]
   user.deleted: [execution]
   user.availability.changed: [execution]
-  workflow.template.published: [execution]
   department.membership.revoked: [definition]

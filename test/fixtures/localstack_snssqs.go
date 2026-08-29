@@ -44,7 +44,6 @@ var Topologies = []struct {
 }{
 	{Topic: "iam-membership-events", Queue: "membership-workflow-q", DLQ: "membership-workflow-q-dlq"},
 	{Topic: "iam-user-events", Queue: "user-wf-q", DLQ: "user-wf-q-dlq"},
-	{Topic: "wf-template-events", Queue: "wf-execution-sync-q", DLQ: "wf-execution-sync-q-dlq"},
 }
 
 func NewLocalStackSNSSQS(ctx context.Context, t *testing.T) *LocalStackSNSSQS {

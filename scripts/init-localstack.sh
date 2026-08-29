@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # LocalStack init-hook (mounted at /etc/localstack/init/ready.d/) — provisions
-# the same 3 topic -> queue(+DLQ) triples used in config/topology.local.yaml
+# the same 2 topic -> queue(+DLQ) triples used in config/topology.local.yaml
 # and the integration test fixture (test/fixtures/localstack_snssqs.go).
 set -euo pipefail
 
@@ -49,6 +49,5 @@ create_topology() {
 
 create_topology iam-membership-events membership-workflow-q membership-workflow-q-dlq
 create_topology iam-user-events user-wf-q user-wf-q-dlq
-create_topology wf-template-events wf-execution-sync-q wf-execution-sync-q-dlq
 
 echo "LocalStack topology ready."

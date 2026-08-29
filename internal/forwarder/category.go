@@ -7,12 +7,11 @@ package forwarder
 // definition/workflow-stream-gateway, neither of which has a category
 // mapping) still serves.
 var category = map[string]string{
-	"delegation.started":          "delegation",
-	"delegation.ended":            "delegation",
-	"user.deleted":                "user-profile",
-	"user.availability.changed":   "user-profile",
-	"tenant.state.changed":        "tenant",
-	"workflow.template.published": "workflow-template",
+	"delegation.started":        "delegation",
+	"delegation.ended":          "delegation",
+	"user.deleted":              "user-profile",
+	"user.availability.changed": "user-profile",
+	"tenant.state.changed":      "tenant",
 }
 
 func categoryFor(eventType string) (string, bool) {

@@ -12,8 +12,7 @@
       ],
       "Resource": [
         "arn:aws:sqs:*:*:membership-workflow-q",
-        "arn:aws:sqs:*:*:user-wf-q",
-        "arn:aws:sqs:*:*:wf-execution-sync-q"
+        "arn:aws:sqs:*:*:user-wf-q"
       ]
     }
   ]

@@ -59,15 +59,12 @@ topology:
       url: https://sqs.us-east-1.amazonaws.com/000000000000/membership-workflow-q
     - name: user
       url: https://sqs.us-east-1.amazonaws.com/000000000000/user-wf-q
-    - name: template
-      url: https://sqs.us-east-1.amazonaws.com/000000000000/wf-execution-sync-q
   routes:
     delegation.started: [execution]
     delegation.ended: [execution]
     tenant.state.changed: [execution]
     user.deleted: [execution]
     user.availability.changed: [execution]
-    workflow.template.published: [execution]
     department.membership.revoked: [definition]
 
 # Real values MUST come from an existingSecret in production — secretValues

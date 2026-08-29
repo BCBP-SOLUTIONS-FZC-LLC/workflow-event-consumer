@@ -157,13 +157,13 @@ func TestLocalStackFlow_UnknownTypeBroadcastsToAll(t *testing.T) {
 		forwarder.NewTarget("definition", def.URL(), "def-token", 5*time.Second),
 	)
 
-	templateQueue := ls.Queues["wf-template-events"]
-	startConsumer(t, buildConsumer(t, ls, "template", templateQueue.QueueURL, fwd, 5*time.Second))
+	membershipQueue := ls.Queues["iam-membership-events"]
+	startConsumer(t, buildConsumer(t, ls, "membership", membershipQueue.QueueURL, fwd, 5*time.Second))
 
 	env := events.NewEnvelope("SomeFutureEventType", "iam", json.RawMessage(`{}`))
 	body, err := json.Marshal(env)
 	require.NoError(t, err)
-	ls.Publish(ctx, t, "wf-template-events", body)
+	ls.Publish(ctx, t, "iam-membership-events", body)
 
 	require.Eventually(t, func() bool {
 		return exec.Count() == 1 && def.Count() == 1

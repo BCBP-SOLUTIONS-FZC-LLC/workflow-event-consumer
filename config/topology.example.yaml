@@ -27,8 +27,6 @@ queues:
     url: https://sqs.us-east-1.amazonaws.com/000000000000/membership-workflow-q
   - name: user
     url: https://sqs.us-east-1.amazonaws.com/000000000000/user-wf-q
-  - name: template
-    url: https://sqs.us-east-1.amazonaws.com/000000000000/wf-execution-sync-q
   - name: dashboard
     url: https://sqs.us-east-1.amazonaws.com/000000000000/wf-workflow-dash-q
 
@@ -51,7 +49,6 @@ routes:
   tenant.state.changed: [execution]
   user.deleted: [execution]
   user.availability.changed: [execution]
-  workflow.template.published: [execution]
   department.membership.revoked: [definition]
   workflow.task.created: [workflow-stream-gateway]
   workflow.task.completed: [workflow-stream-gateway]

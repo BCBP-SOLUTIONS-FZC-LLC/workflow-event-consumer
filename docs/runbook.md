@@ -18,7 +18,6 @@ table when a new event type is added upstream.
 | `tenant.state.changed` | execution |
 | `user.deleted` | execution |
 | `user.availability.changed` | execution |
-| `workflow.template.published` | execution |
 | `department.membership.revoked` | definition |
 | *(anything else)* | broadcast to all targets |
 
@@ -26,7 +25,7 @@ table when a new event type is added upstream.
 
 Forwarding to the `execution` target no longer always POSTs to
 `/internal/events`. `internal/forwarder/category.go`'s `category` map assigns
-each of execution_service's 6 routed event types to one of 4 categories, and
+each of execution_service's 5 routed event types to one of 3 categories, and
 `Target.forward` builds `/events/<category>` for anything in that map:
 
 | Event type | Category / subpath |
@@ -34,7 +33,6 @@ each of execution_service's 6 routed event types to one of 4 categories, and
 | `delegation.started`, `delegation.ended` | `delegation` → `/events/delegation` |
 | `user.deleted`, `user.availability.changed` | `user-profile` → `/events/user-profile` |
 | `tenant.state.changed` | `tenant` → `/events/tenant` |
-| `workflow.template.published` | `workflow-template` → `/events/workflow-template` |
 
 Every other target (`definition`, `workflow-stream-gateway`) and any event
 type absent from this map still gets the legacy `/internal/events` path —
@@ -97,7 +95,7 @@ aws sqs start-message-move-task \
    integration test case (see `test/integration/localstack_flow_test.go`
    for the pattern) and update its `testRoutes` fixture map.
 4. Update the table above.
-5. If the new type routes to `execution` and belongs to one of the 4
+5. If the new type routes to `execution` and belongs to one of the 3
    categories above (or a new one), add it to `internal/forwarder/category.go`'s
    `category` map **and** register/extend the matching subpath in
    execution_service's `RegisterInternalEventsRoutes` — this one step is a
