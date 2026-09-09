@@ -37,7 +37,7 @@ graph TD
 
     subgraph forwarder["internal/forwarder/"]
         fwd["forwarder.go\nForwarder — concurrent fan-out to\nnamed targets, all-or-nothing result"]
-        target["target.go\nTarget — single HTTP POST\n/internal/events + x-internal-token"]
+        target["target.go\nTarget — single HTTP POST\n/api/v1/internal/events + x-internal-token"]
     end
 
     subgraph observability["internal/observability/"]
@@ -47,8 +47,8 @@ graph TD
     subgraph external["External"]
         yaml["config/topology.yaml\n(queues, targets, routes)"]
         sqs["SQS queues\n(one per topology.yaml entry)"]
-        exec["execution_service\nPOST /internal/events"]
-        def["definition_service\nPOST /internal/events"]
+        exec["execution_service\nPOST /api/v1/internal/events"]
+        def["definition_service\nPOST /api/v1/internal/events"]
     end
 
     yaml --> topoload
@@ -137,7 +137,7 @@ sequenceDiagram
     H->>R: Resolve(envelope.Type)
     R-->>H: [target names]
     H->>F: Forward(ctx, queue, targets, body)
-    F->>T: POST /internal/events (x-internal-token)
+    F->>T: POST /api/v1/internal/events (x-internal-token)
     T-->>F: 2xx
     F-->>H: nil (all resolved targets succeeded)
     H-->>C: nil
@@ -168,10 +168,10 @@ sequenceDiagram
     C->>H: handler(ctx, envelope)
     H->>F: Forward(ctx, queue, [A,B], body)
     par concurrent
-        F->>T1: POST /internal/events
+        F->>T1: POST /api/v1/internal/events
         T1-->>F: 200
     and
-        F->>T2: POST /internal/events
+        F->>T2: POST /api/v1/internal/events
         T2-->>F: 500
     end
     F-->>H: error (not all targets succeeded)
@@ -182,10 +182,10 @@ sequenceDiagram
     C->>H: handler(ctx, envelope)
     H->>F: Forward(ctx, queue, [A,B], body)
     par concurrent
-        F->>T1: POST /internal/events
+        F->>T1: POST /api/v1/internal/events
         T1-->>F: 200 (idempotent no-op — already processed)
     and
-        F->>T2: POST /internal/events
+        F->>T2: POST /api/v1/internal/events
         T2-->>F: 200 (now recovered)
     end
     F-->>H: nil

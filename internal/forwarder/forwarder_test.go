@@ -151,7 +151,7 @@ func TestForward_MappedTypeUsesCategoryPath(t *testing.T) {
 
 	err := fwd.Forward(context.Background(), "membership", []string{"execution"}, "delegation.started", []byte(`{}`))
 	require.NoError(t, err)
-	assert.Equal(t, "/events/delegation", a.LastPath())
+	assert.Equal(t, "/api/v1/internal/events/delegation", a.LastPath())
 }
 
 func TestForward_UnmappedTypeFallsBackToLegacyPath(t *testing.T) {
@@ -162,7 +162,7 @@ func TestForward_UnmappedTypeFallsBackToLegacyPath(t *testing.T) {
 
 	err := fwd.Forward(context.Background(), "membership", []string{"definition"}, "department.membership.revoked", []byte(`{}`))
 	require.NoError(t, err)
-	assert.Equal(t, "/internal/events", a.LastPath())
+	assert.Equal(t, "/api/v1/internal/events", a.LastPath())
 }
 
 func TestNames(t *testing.T) {

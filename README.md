@@ -2,7 +2,7 @@
 
 A stateless SNS → SQS → HTTP bridge. It subscribes to a set of SQS queues and
 forwards each event envelope, unmodified, to whichever downstream service's
-`POST /internal/events` endpoint actually needs it. It never inspects or
+`POST /api/v1/internal/events` endpoint actually needs it. It never inspects or
 decodes the payload beyond reading its event type for routing, and holds no
 database of its own — duplicate delivery is absorbed by each downstream
 service's own idempotency.
@@ -71,7 +71,7 @@ make cover-check        # test-ci + coverage threshold gate
 ```
 
 `test/mocks` provides a reusable mock downstream service (`mocks.Downstream`)
-standing in for any real target's `/internal/events` endpoint — used by both
+standing in for any real target's `/api/v1/internal/events` endpoint — used by both
 the unit tests and the LocalStack integration tests. `cmd/mock-downstream` is
 a separate, minimal standalone binary (not a test double) used only by
 `docker compose up` for a working local dev loop.

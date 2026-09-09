@@ -24,18 +24,18 @@ table when a new event type is added upstream.
 ## Type-scoped forwarding subpaths (execution_service only)
 
 Forwarding to the `execution` target no longer always POSTs to
-`/internal/events`. `internal/forwarder/category.go`'s `category` map assigns
+`/api/v1/internal/events`. `internal/forwarder/category.go`'s `category` map assigns
 each of execution_service's 5 routed event types to one of 3 categories, and
 `Target.forward` builds `/events/<category>` for anything in that map:
 
 | Event type | Category / subpath |
 | --- | --- |
-| `delegation.started`, `delegation.ended` | `delegation` → `/events/delegation` |
-| `user.deleted`, `user.availability.changed` | `user-profile` → `/events/user-profile` |
-| `tenant.state.changed` | `tenant` → `/events/tenant` |
+| `delegation.started`, `delegation.ended` | `delegation` → `/api/v1/internal/events/delegation` |
+| `user.deleted`, `user.availability.changed` | `user-profile` → `/api/v1/internal/events/user-profile` |
+| `tenant.state.changed` | `tenant` → `/api/v1/internal/events/tenant` |
 
 Every other target (`definition`, `workflow-stream-gateway`) and any event
-type absent from this map still gets the legacy `/internal/events` path —
+type absent from this map still gets the legacy `/api/v1/internal/events` path —
 execution_service keeps that route registered as an unconditional catch-all,
 so an unmapped type is never dropped. **This map is Go code, not
 `topology.yaml`** — deliberately not config-driven, because a mismatched edit
@@ -86,7 +86,7 @@ aws sqs start-message-move-task \
 ## Adding a new event type
 
 1. Confirm which downstream service(s) actually need it — check that
-   service's own `POST /internal/events` handler and event catalogue.
+   service's own `POST /api/v1/internal/events` handler and event catalogue.
 2. Add an entry to `routes` in `config/topology.yaml` (and
    `config/topology.example.yaml`/`config/topology.local.yaml` for the
    checked-in reference/dev copies). No Go code change or rebuild needed —

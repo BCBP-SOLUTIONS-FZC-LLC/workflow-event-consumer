@@ -35,7 +35,7 @@ Provide a clear description of the changes.
 *Complete only when `internal/consumer/routing.go` changed.*
 
 - [ ] `eventRoutes` entry matches what the target downstream service(s)
-      actually consume (checked their own `/internal/events` handler/catalogue)
+      actually consume (checked their own `/api/v1/internal/events` handler/catalogue)
 - [ ] `routing_test.go` updated
 - [ ] `docs/runbook.md`'s routing table updated
 - [ ] LocalStack integration test case added if the change is worth exercising end-to-end

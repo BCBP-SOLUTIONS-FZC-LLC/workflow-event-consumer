@@ -26,9 +26,9 @@ func NewTarget(name, addr, token string, timeout time.Duration) *Target {
 }
 
 func (t *Target) forward(ctx context.Context, eventType string, body []byte) error {
-	path := "/internal/events"
+	path := "/api/v1/internal/events"
 	if c, ok := categoryFor(eventType); ok {
-		path = "/events/" + c
+		path = "/api/v1/internal/events/" + c
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, t.addr+path, bytes.NewReader(body))
 	if err != nil {
