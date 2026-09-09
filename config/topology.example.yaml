@@ -43,6 +43,11 @@ queues:
 # workflow.instance.started is deliberately absent (decided 2026-08-24):
 # execution_service's own asyncapi.yaml documents it as not routed here —
 # the creating client already knows synchronously.
+#
+# workflow.task.created also routes to execution — a connector-typed task's
+# dispatch worker only ever receives it through this route, so routing this
+# event to workflow-stream-gateway alone left connector dispatch entirely
+# unreachable.
 routes:
   delegation.started: [execution]
   delegation.ended: [execution]
@@ -50,7 +55,7 @@ routes:
   user.deleted: [execution]
   user.availability.changed: [execution]
   department.membership.revoked: [definition]
-  workflow.task.created: [workflow-stream-gateway]
+  workflow.task.created: [workflow-stream-gateway, execution]
   workflow.task.completed: [workflow-stream-gateway]
   workflow.task.deferred: [workflow-stream-gateway]
   workflow.task.reassigned: [workflow-stream-gateway]
