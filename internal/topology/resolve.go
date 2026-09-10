@@ -19,7 +19,7 @@ func (c Config) ResolveTargets(appEnv string, tokenLookup func(string) string, t
 		if appEnv == "prod" && token == "" {
 			return nil, fmt.Errorf("topology: target %q: env var %s is required when APP_ENV=prod", t.Name, t.TokenEnv)
 		}
-		targets = append(targets, forwarder.NewTarget(t.Name, t.Addr, token, timeout))
+		targets = append(targets, forwarder.NewTarget(t.Name, t.Addr, t.PathPrefix, token, timeout))
 	}
 	return targets, nil
 }

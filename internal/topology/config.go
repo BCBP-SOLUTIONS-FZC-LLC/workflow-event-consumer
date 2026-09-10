@@ -15,14 +15,19 @@ type Config struct {
 	Routes  map[string][]string `yaml:"routes"`
 }
 
-// Target is one downstream service's POST /internal/events endpoint. Addr is
-// not a secret and lives directly in the file; TokenEnv only names the
-// environment variable holding that service's own INTERNAL_API_TOKEN — the
-// token value itself is never stored here.
+// Target is one downstream service's internal-events endpoint. Addr is not a
+// secret and lives directly in the file; TokenEnv only names the environment
+// variable holding that service's own INTERNAL_API_TOKEN — the token value
+// itself is never stored here. PathPrefix is that service's real registered
+// base path (e.g. "/api/v1/internal/events") — real, per-target config
+// rather than a value assumed identical for every target; it defaults to
+// "/api/v1/internal/events" when empty, since every target that exists today
+// serves that same versioned path.
 type Target struct {
-	Name     string `yaml:"name"`
-	Addr     string `yaml:"addr"`
-	TokenEnv string `yaml:"tokenEnv"`
+	Name       string `yaml:"name"`
+	Addr       string `yaml:"addr"`
+	TokenEnv   string `yaml:"tokenEnv"`
+	PathPrefix string `yaml:"pathPrefix,omitempty"`
 }
 
 // Queue is one SQS queue this bridge polls.
