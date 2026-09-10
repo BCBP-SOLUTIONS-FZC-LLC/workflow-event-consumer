@@ -15,9 +15,9 @@ queues:
     url: http://localstack:4566/000000000000/user-wf-q
 
 routes:
-  delegation.started: [execution]
-  delegation.ended: [execution]
-  tenant.state.changed: [execution]
-  user.deleted: [execution]
-  user.availability.changed: [execution]
-  department.membership.revoked: [definition]
+  DelegationStarted: [execution]
+  DelegationEnded: [execution]
+  TenantStateChanged: [execution]
+  UserDeleted: [execution]
+  UserAvailabilityChanged: [execution]
+  DepartmentMembershipRevoked: [definition]

@@ -22,26 +22,26 @@ func TestMain(m *testing.M) {
 }
 
 var testRoutes = map[string][]string{
-	"delegation.started":            {"execution"},
-	"department.membership.revoked": {"definition"},
+	"DelegationStarted":           {"execution"},
+	"DepartmentMembershipRevoked": {"definition"},
 }
 
 func TestMakeHandler_Success(t *testing.T) {
 	exec := mocks.NewDownstream()
 	defer exec.Close()
 
-	fwd := forwarder.New(forwarder.NewTarget("execution", exec.URL(), "token", time.Second))
+	fwd := forwarder.New(forwarder.NewTarget("execution", exec.URL(), "", "token", time.Second))
 	router := NewRouter(testRoutes, []string{"execution"})
 	handler := MakeHandler("membership", fwd, router)
 
-	env := events.Envelope[json.RawMessage]{ID: "evt-1", Type: "delegation.started", Payload: json.RawMessage(`{"a":1}`)}
+	env := events.Envelope[json.RawMessage]{ID: "evt-1", Type: "DelegationStarted", Payload: json.RawMessage(`{"a":1}`)}
 	err := handler(context.Background(), env)
 	require.NoError(t, err)
 
 	require.Equal(t, 1, exec.Count())
 	got := exec.Received()[0]
 	assert.Equal(t, "evt-1", got.ID)
-	assert.Equal(t, "delegation.started", got.Type)
+	assert.Equal(t, "DelegationStarted", got.Type)
 	assert.JSONEq(t, `{"a":1}`, string(got.Payload))
 	assert.Equal(t, "token", exec.LastToken())
 }
@@ -53,13 +53,13 @@ func TestMakeHandler_RoutesToOnlyOneTarget(t *testing.T) {
 	defer def.Close()
 
 	fwd := forwarder.New(
-		forwarder.NewTarget("execution", exec.URL(), "exec-token", time.Second),
-		forwarder.NewTarget("definition", def.URL(), "def-token", time.Second),
+		forwarder.NewTarget("execution", exec.URL(), "", "exec-token", time.Second),
+		forwarder.NewTarget("definition", def.URL(), "", "def-token", time.Second),
 	)
 	router := NewRouter(testRoutes, []string{"execution", "definition"})
 	handler := MakeHandler("membership", fwd, router)
 
-	env := events.Envelope[json.RawMessage]{ID: "evt-3", Type: "department.membership.revoked", Payload: json.RawMessage(`{}`)}
+	env := events.Envelope[json.RawMessage]{ID: "evt-3", Type: "DepartmentMembershipRevoked", Payload: json.RawMessage(`{}`)}
 	err := handler(context.Background(), env)
 	require.NoError(t, err)
 	assert.Equal(t, 0, exec.Count(), "execution should not receive a definition-only event")
@@ -73,8 +73,8 @@ func TestMakeHandler_UnknownTypeBroadcastsToAll(t *testing.T) {
 	defer def.Close()
 
 	fwd := forwarder.New(
-		forwarder.NewTarget("execution", exec.URL(), "exec-token", time.Second),
-		forwarder.NewTarget("definition", def.URL(), "def-token", time.Second),
+		forwarder.NewTarget("execution", exec.URL(), "", "exec-token", time.Second),
+		forwarder.NewTarget("definition", def.URL(), "", "def-token", time.Second),
 	)
 	router := NewRouter(testRoutes, []string{"execution", "definition"})
 	handler := MakeHandler("membership", fwd, router)
@@ -91,11 +91,11 @@ func TestMakeHandler_ForwardFails(t *testing.T) {
 	defer exec.Close()
 	exec.SetStatus(http.StatusInternalServerError)
 
-	fwd := forwarder.New(forwarder.NewTarget("execution", exec.URL(), "token", time.Second))
+	fwd := forwarder.New(forwarder.NewTarget("execution", exec.URL(), "", "token", time.Second))
 	router := NewRouter(testRoutes, []string{"execution"})
 	handler := MakeHandler("membership", fwd, router)
 
-	env := events.Envelope[json.RawMessage]{ID: "evt-2", Type: "delegation.started", Payload: json.RawMessage(`{}`)}
+	env := events.Envelope[json.RawMessage]{ID: "evt-2", Type: "DelegationStarted", Payload: json.RawMessage(`{}`)}
 	err := handler(context.Background(), env)
 	assert.Error(t, err)
 }

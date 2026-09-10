@@ -60,16 +60,16 @@ topology:
     - name: user
       url: https://sqs.us-east-1.amazonaws.com/000000000000/user-wf-q
   routes:
-    delegation.started: [execution]
-    delegation.ended: [execution]
-    tenant.state.changed: [execution]
-    user.deleted: [execution]
-    user.availability.changed: [execution]
-    department.membership.revoked: [definition]
+    DelegationStarted: [execution]
+    DelegationEnded: [execution]
+    TenantStateChanged: [execution]
+    UserDeleted: [execution]
+    UserAvailabilityChanged: [execution]
+    DepartmentMembershipRevoked: [definition]
     # A connector-typed task's dispatch worker only ever receives this event
     # through this route. This chart declares no workflow-stream-gateway
     # target, so this route only lists execution.
-    workflow.task.created: [execution]
+    WorkflowTaskCreated: [execution]
 
 # Real values MUST come from an existingSecret in production — secretValues
 # below end up in Helm release history as plain base64 if used directly.

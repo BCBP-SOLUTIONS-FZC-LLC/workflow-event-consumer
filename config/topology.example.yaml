@@ -11,16 +11,26 @@
 
 version: 1
 
+# pathPrefix is each target's real registered internal-events base path.
+# Every target below serves the same versioned /api/v1/internal/events
+# convention today (execution_service, definition_service, and
+# workflow-stream-gateway all converged on it) — pathPrefix defaults to that
+# same value when omitted, so leaving it out is equivalent to spelling it out
+# here, but a target on a different convention overrides it per-target
+# instead of forcing a Go code change.
 targets:
   - name: execution
     addr: http://execution-service.internal
     tokenEnv: EXECUTION_SERVICE_TOKEN
+    pathPrefix: /api/v1/internal/events
   - name: definition
     addr: http://definition-service.internal
     tokenEnv: DEFINITION_SERVICE_TOKEN
+    pathPrefix: /api/v1/internal/events
   - name: workflow-stream-gateway
     addr: http://workflow-stream-gateway.internal
     tokenEnv: WORKFLOW_STREAM_GATEWAY_TOKEN
+    pathPrefix: /api/v1/internal/events
 
 queues:
   - name: membership
@@ -40,29 +50,29 @@ queues:
 # the wf-workflow-dash-q SNS filter-policy provisioning that actually
 # delivers those 11 types onto the `dashboard` queue above is
 # infra-provisioning tracked in that LLD's Appendix B, not done by this file.
-# workflow.instance.started is deliberately absent (decided 2026-08-24):
+# WorkflowInstanceStarted is deliberately absent (decided 2026-08-24):
 # execution_service's own asyncapi.yaml documents it as not routed here —
 # the creating client already knows synchronously.
 #
-# workflow.task.created also routes to execution — a connector-typed task's
+# WorkflowTaskCreated also routes to execution — a connector-typed task's
 # dispatch worker only ever receives it through this route, so routing this
 # event to workflow-stream-gateway alone left connector dispatch entirely
 # unreachable.
 routes:
-  delegation.started: [execution]
-  delegation.ended: [execution]
-  tenant.state.changed: [execution]
-  user.deleted: [execution]
-  user.availability.changed: [execution]
-  department.membership.revoked: [definition]
-  workflow.task.created: [workflow-stream-gateway, execution]
-  workflow.task.completed: [workflow-stream-gateway]
-  workflow.task.deferred: [workflow-stream-gateway]
-  workflow.task.reassigned: [workflow-stream-gateway]
-  workflow.task.sla-warning: [workflow-stream-gateway]
-  workflow.task.sla-breached: [workflow-stream-gateway]
-  workflow.instance.paused: [workflow-stream-gateway]
-  workflow.instance.resumed: [workflow-stream-gateway]
-  workflow.instance.cancelled: [workflow-stream-gateway]
-  workflow.instance.terminated: [workflow-stream-gateway]
-  workflow.instance.finished: [workflow-stream-gateway]
+  DelegationStarted: [execution]
+  DelegationEnded: [execution]
+  TenantStateChanged: [execution]
+  UserDeleted: [execution]
+  UserAvailabilityChanged: [execution]
+  DepartmentMembershipRevoked: [definition]
+  WorkflowTaskCreated: [workflow-stream-gateway, execution]
+  WorkflowTaskCompleted: [workflow-stream-gateway]
+  WorkflowTaskDeferred: [workflow-stream-gateway]
+  WorkflowTaskReassigned: [workflow-stream-gateway]
+  WorkflowTaskSlaWarning: [workflow-stream-gateway]
+  WorkflowTaskSlaBreached: [workflow-stream-gateway]
+  WorkflowInstancePaused: [workflow-stream-gateway]
+  WorkflowInstanceResumed: [workflow-stream-gateway]
+  WorkflowInstanceCancelled: [workflow-stream-gateway]
+  WorkflowInstanceTerminated: [workflow-stream-gateway]
+  WorkflowInstanceFinished: [workflow-stream-gateway]

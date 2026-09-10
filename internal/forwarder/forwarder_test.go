@@ -28,7 +28,7 @@ func TestForward_BothOK(t *testing.T) {
 	b := mocks.NewDownstream()
 	defer b.Close()
 
-	fwd := New(NewTarget("a", a.URL(), "token-a", time.Second), NewTarget("b", b.URL(), "token-b", time.Second))
+	fwd := New(NewTarget("a", a.URL(), "", "token-a", time.Second), NewTarget("b", b.URL(), "", "token-b", time.Second))
 
 	err := fwd.Forward(context.Background(), "membership", []string{"a", "b"}, "test.event", []byte(`{"id":"1"}`))
 	require.NoError(t, err)
@@ -46,7 +46,7 @@ func TestForward_OnlyNamedTargetCalled(t *testing.T) {
 	b := mocks.NewDownstream()
 	defer b.Close()
 
-	fwd := New(NewTarget("a", a.URL(), "token-a", time.Second), NewTarget("b", b.URL(), "token-b", time.Second))
+	fwd := New(NewTarget("a", a.URL(), "", "token-a", time.Second), NewTarget("b", b.URL(), "", "token-b", time.Second))
 
 	err := fwd.Forward(context.Background(), "membership", []string{"a"}, "test.event", []byte(`{"id":"1"}`))
 	require.NoError(t, err)
@@ -61,7 +61,7 @@ func TestForward_OneFails(t *testing.T) {
 	defer b.Close()
 	b.SetStatus(http.StatusInternalServerError)
 
-	fwd := New(NewTarget("a", a.URL(), "token-a", time.Second), NewTarget("b", b.URL(), "token-b", time.Second))
+	fwd := New(NewTarget("a", a.URL(), "", "token-a", time.Second), NewTarget("b", b.URL(), "", "token-b", time.Second))
 
 	err := fwd.Forward(context.Background(), "membership", []string{"a", "b"}, "test.event", []byte(`{"id":"1"}`))
 	assert.Error(t, err)
@@ -74,21 +74,21 @@ func TestForward_OneBadRequest(t *testing.T) {
 	defer b.Close()
 	b.SetStatus(http.StatusBadRequest)
 
-	fwd := New(NewTarget("a", a.URL(), "token-a", time.Second), NewTarget("b", b.URL(), "token-b", time.Second))
+	fwd := New(NewTarget("a", a.URL(), "", "token-a", time.Second), NewTarget("b", b.URL(), "", "token-b", time.Second))
 
 	err := fwd.Forward(context.Background(), "membership", []string{"a", "b"}, "test.event", []byte(`{"id":"1"}`))
 	assert.Error(t, err)
 }
 
 func TestForward_UnknownTarget(t *testing.T) {
-	fwd := New(NewTarget("a", "http://unused", "token", time.Second))
+	fwd := New(NewTarget("a", "http://unused", "", "token", time.Second))
 
 	err := fwd.Forward(context.Background(), "membership", []string{"nonexistent"}, "test.event", []byte(`{}`))
 	assert.Error(t, err)
 }
 
 func TestForward_MalformedTargetURL(t *testing.T) {
-	fwd := New(NewTarget("bad", "http://example.com\x7f", "token", time.Second))
+	fwd := New(NewTarget("bad", "http://example.com\x7f", "", "token", time.Second))
 
 	err := fwd.Forward(context.Background(), "membership", []string{"bad"}, "test.event", []byte(`{}`))
 	assert.Error(t, err)
@@ -101,7 +101,7 @@ func TestForward_TimeoutEnforced(t *testing.T) {
 	}))
 	defer slow.Close()
 
-	fwd := New(NewTarget("slow", slow.URL, "token", 20*time.Millisecond))
+	fwd := New(NewTarget("slow", slow.URL, "", "token", 20*time.Millisecond))
 
 	err := fwd.Forward(context.Background(), "membership", []string{"slow"}, "test.event", []byte(`{}`))
 	assert.Error(t, err)
@@ -127,7 +127,7 @@ func TestForward_Concurrent(t *testing.T) {
 	b := httptest.NewServer(http.HandlerFunc(handler))
 	defer b.Close()
 
-	fwd := New(NewTarget("a", a.URL, "t", time.Second), NewTarget("b", b.URL, "t", time.Second))
+	fwd := New(NewTarget("a", a.URL, "", "t", time.Second), NewTarget("b", b.URL, "", "t", time.Second))
 
 	var wg sync.WaitGroup
 	wg.Add(1)
@@ -147,9 +147,9 @@ func TestForward_MappedTypeUsesCategoryPath(t *testing.T) {
 	a := mocks.NewDownstream()
 	defer a.Close()
 
-	fwd := New(NewTarget("execution", a.URL(), "token", time.Second))
+	fwd := New(NewTarget("execution", a.URL(), "", "token", time.Second))
 
-	err := fwd.Forward(context.Background(), "membership", []string{"execution"}, "delegation.started", []byte(`{}`))
+	err := fwd.Forward(context.Background(), "membership", []string{"execution"}, "DelegationStarted", []byte(`{}`))
 	require.NoError(t, err)
 	assert.Equal(t, "/api/v1/internal/events/delegation", a.LastPath())
 }
@@ -158,15 +158,37 @@ func TestForward_UnmappedTypeFallsBackToLegacyPath(t *testing.T) {
 	a := mocks.NewDownstream()
 	defer a.Close()
 
-	fwd := New(NewTarget("definition", a.URL(), "token", time.Second))
+	fwd := New(NewTarget("definition", a.URL(), "", "token", time.Second))
 
-	err := fwd.Forward(context.Background(), "membership", []string{"definition"}, "department.membership.revoked", []byte(`{}`))
+	err := fwd.Forward(context.Background(), "membership", []string{"definition"}, "DepartmentMembershipRevoked", []byte(`{}`))
 	require.NoError(t, err)
 	assert.Equal(t, "/api/v1/internal/events", a.LastPath())
 }
 
+// TestForward_MappedType_OnlyExecutionGetsCategoryPath is a regression test:
+// WorkflowTaskCreated routes to both execution and workflow-stream-gateway
+// (config/topology.example.yaml), but only execution registers a
+// /events/workflow-task subpath — workflow-stream-gateway only ever serves
+// its one bare endpoint. categoryFor must not be applied target-agnostically.
+func TestForward_MappedType_OnlyExecutionGetsCategoryPath(t *testing.T) {
+	exec := mocks.NewDownstream()
+	defer exec.Close()
+	gateway := mocks.NewDownstream()
+	defer gateway.Close()
+
+	fwd := New(
+		NewTarget("execution", exec.URL(), "", "exec-token", time.Second),
+		NewTarget("workflow-stream-gateway", gateway.URL(), "", "gw-token", time.Second),
+	)
+
+	err := fwd.Forward(context.Background(), "dashboard", []string{"workflow-stream-gateway", "execution"}, "WorkflowTaskCreated", []byte(`{}`))
+	require.NoError(t, err)
+	assert.Equal(t, "/api/v1/internal/events/workflow-task", exec.LastPath())
+	assert.Equal(t, "/api/v1/internal/events", gateway.LastPath())
+}
+
 func TestNames(t *testing.T) {
-	fwd := New(NewTarget("a", "http://unused-a", "t", time.Second), NewTarget("b", "http://unused-b", "t", time.Second))
+	fwd := New(NewTarget("a", "http://unused-a", "", "t", time.Second), NewTarget("b", "http://unused-b", "", "t", time.Second))
 	names := fwd.Names()
 	sort.Strings(names)
 	assert.Equal(t, []string{"a", "b"}, names)

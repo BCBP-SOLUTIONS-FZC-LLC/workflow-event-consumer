@@ -32,9 +32,9 @@ func setLocalStackCredentials(t *testing.T) {
 // testRoutes mirrors config/topology.example.yaml's routing table for the
 // event types these tests actually publish.
 var testRoutes = map[string][]string{
-	"delegation.started":            {"execution"},
-	"user.deleted":                  {"execution"},
-	"department.membership.revoked": {"definition"},
+	"DelegationStarted":           {"execution"},
+	"UserDeleted":                 {"execution"},
+	"DepartmentMembershipRevoked": {"definition"},
 }
 
 func buildConsumer(t *testing.T, ls *fixtures.LocalStackSNSSQS, queueName, queueURL string, fwd *forwarder.Forwarder, visibilityTimeout time.Duration) events.Consumer {
@@ -78,16 +78,16 @@ func TestLocalStackFlow_RoutesToOnlyExecution(t *testing.T) {
 	defer def.Close()
 
 	fwd := forwarder.New(
-		forwarder.NewTarget("execution", exec.URL(), "exec-token", 5*time.Second),
-		forwarder.NewTarget("definition", def.URL(), "def-token", 5*time.Second),
+		forwarder.NewTarget("execution", exec.URL(), "", "exec-token", 5*time.Second),
+		forwarder.NewTarget("definition", def.URL(), "", "def-token", 5*time.Second),
 	)
 
 	membershipQueue := ls.Queues["iam-membership-events"]
 	startConsumer(t, buildConsumer(t, ls, "membership", membershipQueue.QueueURL, fwd, 5*time.Second))
 
-	// delegation.started is execution-only per config/topology.example.yaml/testRoutes —
+	// DelegationStarted is execution-only per config/topology.example.yaml/testRoutes —
 	// definition_service should never see it.
-	env := events.NewEnvelope("delegation.started", "iam", json.RawMessage(`{"delegate_id":"u-1"}`))
+	env := events.NewEnvelope("DelegationStarted", "iam", json.RawMessage(`{"delegate_id":"u-1"}`))
 	body, err := json.Marshal(env)
 	require.NoError(t, err)
 	ls.Publish(ctx, t, "iam-membership-events", body)
@@ -116,15 +116,15 @@ func TestLocalStackFlow_RoutesToOnlyDefinition(t *testing.T) {
 	defer def.Close()
 
 	fwd := forwarder.New(
-		forwarder.NewTarget("execution", exec.URL(), "exec-token", 5*time.Second),
-		forwarder.NewTarget("definition", def.URL(), "def-token", 5*time.Second),
+		forwarder.NewTarget("execution", exec.URL(), "", "exec-token", 5*time.Second),
+		forwarder.NewTarget("definition", def.URL(), "", "def-token", 5*time.Second),
 	)
 
 	membershipQueue := ls.Queues["iam-membership-events"]
 	startConsumer(t, buildConsumer(t, ls, "membership", membershipQueue.QueueURL, fwd, 5*time.Second))
 
-	// department.membership.revoked is definition-only per config/topology.example.yaml/testRoutes.
-	env := events.NewEnvelope("department.membership.revoked", "iam", json.RawMessage(`{"department_id":"d-1"}`))
+	// DepartmentMembershipRevoked is definition-only per config/topology.example.yaml/testRoutes.
+	env := events.NewEnvelope("DepartmentMembershipRevoked", "iam", json.RawMessage(`{"department_id":"d-1"}`))
 	body, err := json.Marshal(env)
 	require.NoError(t, err)
 	ls.Publish(ctx, t, "iam-membership-events", body)
@@ -153,8 +153,8 @@ func TestLocalStackFlow_UnknownTypeBroadcastsToAll(t *testing.T) {
 	defer def.Close()
 
 	fwd := forwarder.New(
-		forwarder.NewTarget("execution", exec.URL(), "exec-token", 5*time.Second),
-		forwarder.NewTarget("definition", def.URL(), "def-token", 5*time.Second),
+		forwarder.NewTarget("execution", exec.URL(), "", "exec-token", 5*time.Second),
+		forwarder.NewTarget("definition", def.URL(), "", "def-token", 5*time.Second),
 	)
 
 	membershipQueue := ls.Queues["iam-membership-events"]
@@ -180,19 +180,19 @@ func TestLocalStackFlow_OneTargetFailsBlocksAck(t *testing.T) {
 	defer exec.Close()
 	def := mocks.NewDownstream()
 	defer def.Close()
-	// user.deleted is execution-only (testRoutes) — failing execution itself
+	// UserDeleted is execution-only (testRoutes) — failing execution itself
 	// is the only way to exercise "redeliver until the resolved target succeeds".
 	exec.SetStatus(http.StatusInternalServerError)
 
 	fwd := forwarder.New(
-		forwarder.NewTarget("execution", exec.URL(), "exec-token", 5*time.Second),
-		forwarder.NewTarget("definition", def.URL(), "def-token", 5*time.Second),
+		forwarder.NewTarget("execution", exec.URL(), "", "exec-token", 5*time.Second),
+		forwarder.NewTarget("definition", def.URL(), "", "def-token", 5*time.Second),
 	)
 
 	userQueue := ls.Queues["iam-user-events"]
 	startConsumer(t, buildConsumer(t, ls, "user", userQueue.QueueURL, fwd, 2*time.Second))
 
-	env := events.NewEnvelope("user.deleted", "iam", json.RawMessage(`{"user_id":"u-2"}`))
+	env := events.NewEnvelope("UserDeleted", "iam", json.RawMessage(`{"user_id":"u-2"}`))
 	body, err := json.Marshal(env)
 	require.NoError(t, err)
 	ls.Publish(ctx, t, "iam-user-events", body)

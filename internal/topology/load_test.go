@@ -31,8 +31,8 @@ queues:
   - name: user
     url: https://sqs/user
 routes:
-  delegation.started: [execution]
-  department.membership.revoked: [definition]
+  DelegationStarted: [execution]
+  DepartmentMembershipRevoked: [definition]
 `
 
 func TestLoad_Valid(t *testing.T) {
@@ -41,7 +41,7 @@ func TestLoad_Valid(t *testing.T) {
 	require.NoError(t, err)
 	assert.Len(t, cfg.Targets, 2)
 	assert.Len(t, cfg.Queues, 2)
-	assert.Equal(t, []string{"execution"}, cfg.Routes["delegation.started"])
+	assert.Equal(t, []string{"execution"}, cfg.Routes["DelegationStarted"])
 }
 
 func TestLoad_MissingFile(t *testing.T) {
