@@ -21,3 +21,8 @@ routes:
   UserDeleted: [execution]
   UserAvailabilityChanged: [execution]
   DepartmentMembershipRevoked: [definition]
+  MembershipRevoked: [definition, execution]
+  TenantMembershipsPurged: [execution]
+  TenderAssigneeOverridden: []
+  DepartmentMembershipGranted: []
+  DepartmentMembershipLevelChanged: []

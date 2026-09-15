@@ -107,11 +107,6 @@ func TestValidate(t *testing.T) {
 			wantErr: "url is required",
 		},
 		{
-			name:    "route with no targets",
-			yaml:    "version: 1\ntargets: [{name: t, addr: a, tokenEnv: E}]\nqueues: [{name: q, url: u}]\nroutes: {SomeType: []}\n",
-			wantErr: "at least one target is required",
-		},
-		{
 			name:    "route references undeclared target",
 			yaml:    "version: 1\ntargets: [{name: t, addr: a, tokenEnv: E}]\nqueues: [{name: q, url: u}]\nroutes: {SomeType: [nonexistent]}\n",
 			wantErr: "undeclared target",

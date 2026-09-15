@@ -69,9 +69,6 @@ func (c Config) validate() error {
 	}
 
 	for eventType, targets := range c.Routes {
-		if len(targets) == 0 {
-			return fmt.Errorf("route %q: at least one target is required", eventType)
-		}
 		for _, name := range targets {
 			if !targetNames[name] {
 				return fmt.Errorf("route %q: references undeclared target %q", eventType, name)

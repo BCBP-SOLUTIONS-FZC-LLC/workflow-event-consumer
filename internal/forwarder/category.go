@@ -17,7 +17,14 @@ var category = map[string]string{
 	"DelegationEnded":         "delegation",
 	"UserDeleted":             "user-profile",
 	"UserAvailabilityChanged": "user-profile",
-	"TenantStateChanged":      "tenant",
+	// Removing a user from a tenant has the same effect on execution as
+	// deleting them — every active assignment they hold is vacated — so it
+	// shares UserDeleted's own subpath rather than getting a new one.
+	"MembershipRevoked":  "user-profile",
+	"TenantStateChanged": "tenant",
+	// IAM Core's tenant-offboarding cascade signal, handled on the same
+	// endpoint as TenantStateChanged's own offboard branch.
+	"TenantMembershipsPurged": "tenant",
 	"WorkflowTaskCreated":     "workflow-task",
 }
 

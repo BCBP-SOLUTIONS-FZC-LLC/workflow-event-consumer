@@ -66,10 +66,15 @@ topology:
     UserDeleted: [execution]
     UserAvailabilityChanged: [execution]
     DepartmentMembershipRevoked: [definition]
+    MembershipRevoked: [definition, execution]
+    TenantMembershipsPurged: [execution]
     # A connector-typed task's dispatch worker only ever receives this event
     # through this route. This chart declares no workflow-stream-gateway
     # target, so this route only lists execution.
     WorkflowTaskCreated: [execution]
+    TenderAssigneeOverridden: []
+    DepartmentMembershipGranted: []
+    DepartmentMembershipLevelChanged: []
 
 # Real values MUST come from an existingSecret in production — secretValues
 # below end up in Helm release history as plain base64 if used directly.
