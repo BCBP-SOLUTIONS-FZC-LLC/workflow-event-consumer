@@ -4,6 +4,8 @@ import (
 	"sync"
 
 	"github.com/prometheus/client_golang/prometheus"
+
+	"github.com/BCBP-SOLUTIONS-FZC-LLC/platform-gincommon/pkg/gincommon"
 )
 
 var (
@@ -36,5 +38,9 @@ func register() {
 		Buckets: prometheus.DefBuckets,
 	}, []string{"queue", "result"})
 
-	prometheus.MustRegister(ForwardTotal, ForwardDurationSeconds, HandlerDurationSeconds)
+	// Registered against gincommon.MetricsRegisterer(), not
+	// prometheus.MustRegister on the default registry directly — the same
+	// convention definition_service and execution_service already follow, so
+	// a test that swaps in an isolated registry sees these collectors too.
+	gincommon.MetricsRegisterer().MustRegister(ForwardTotal, ForwardDurationSeconds, HandlerDurationSeconds)
 }
