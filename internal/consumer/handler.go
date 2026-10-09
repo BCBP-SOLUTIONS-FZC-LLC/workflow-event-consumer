@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/BCBP-SOLUTIONS-FZC-LLC/platform-events/pkg/events"
+	"github.com/BCBP-SOLUTIONS-FZC-LLC/platform-events/v2/pkg/events"
 
 	"github.com/BCBP-SOLUTIONS-FZC-LLC/workflow-events-consumer/internal/forwarder"
 	"github.com/BCBP-SOLUTIONS-FZC-LLC/workflow-events-consumer/internal/observability"
@@ -15,8 +15,6 @@ func MakeHandler(queue string, fwd *forwarder.Forwarder, router Router) events.H
 	return func(ctx context.Context, env events.Envelope[json.RawMessage]) error {
 		start := time.Now()
 
-		// Envelope[json.RawMessage] cannot fail to marshal — RawMessage's own
-		// MarshalJSON never returns an error.
 		body, _ := json.Marshal(env)
 
 		targets := router.Resolve(env.Type)

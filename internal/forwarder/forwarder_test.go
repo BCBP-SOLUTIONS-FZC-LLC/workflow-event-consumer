@@ -4,22 +4,24 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"sort"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/BCBP-SOLUTIONS-FZC-LLC/platform-gincommon/pkg/gincommon"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/BCBP-SOLUTIONS-FZC-LLC/workflow-events-consumer/internal/observability"
+	"github.com/BCBP-SOLUTIONS-FZC-LLC/workflow-events-consumer/internal/observability/obstest"
 	"github.com/BCBP-SOLUTIONS-FZC-LLC/workflow-events-consumer/test/mocks"
 )
 
 func TestMain(m *testing.M) {
-	observability.Register()
-	m.Run()
+	obstest.Setup()
+	os.Exit(m.Run())
 }
 
 func TestForward_BothOK(t *testing.T) {
@@ -192,4 +194,38 @@ func TestNames(t *testing.T) {
 	names := fwd.Names()
 	sort.Strings(names)
 	assert.Equal(t, []string{"a", "b"}, names)
+}
+
+func TestForward_RecordsTheForwardDuration(t *testing.T) {
+	const name = "workflow_events_consumer_forward_duration_seconds"
+	a := mocks.NewDownstream()
+	defer a.Close()
+	fwd := New(NewTarget("a", a.URL(), "", "token-a", time.Second))
+	before := obstest.Sum(t, name, map[string]string{"queue": "membership", "target": "a"})
+
+	require.NoError(t, fwd.Forward(context.Background(), "membership", []string{"a"}, "test.event", []byte(`{"id":"1"}`)))
+
+	assert.Equal(t, before+1, obstest.Sum(t, name, map[string]string{"queue": "membership", "target": "a"}))
+}
+
+func TestForward_PropagatesTraceContext(t *testing.T) {
+	t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "none")
+	shutdown, err := gincommon.InitTracingWithConfig(gincommon.TracingConfig{
+		ServiceName: "workflow-events-consumer", BuildVersion: "test", Domain: "workflow", Environment: "test",
+	})
+	require.NoError(t, err)
+	t.Cleanup(shutdown)
+	ctx, span := gincommon.NewTracer("test").Start(context.Background(), "caller")
+	defer span.End()
+
+	var traceparent string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		traceparent = r.Header.Get("Traceparent")
+	}))
+	defer srv.Close()
+	fwd := New(NewTarget("a", srv.URL, "", "token-a", time.Second))
+
+	require.NoError(t, fwd.Forward(ctx, "membership", []string{"a"}, "test.event", []byte(`{"id":"1"}`)))
+
+	assert.NotEmpty(t, traceparent, "the forwarded request carries the trace context")
 }

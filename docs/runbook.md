@@ -54,7 +54,7 @@ means updating both this map and execution_service's
   either a downstream target is slow, or queue depth is outpacing
   `CONSUMER_CONCURRENCY`.
 - Corroborate against the downstream service's own
-  `internal_events_ingest_total{event_type,result}` metric — a spike in
+  `internal_events_ingest_total{event_type,result}` metric (`workflow_<service>_internal_events_ingest_total` in services that follow the platform standard) — a spike in
   `bad_payload`/`decode_failed` there points at a producer-side contract
   break, not this bridge.
 

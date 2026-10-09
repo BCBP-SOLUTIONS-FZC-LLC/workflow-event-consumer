@@ -41,6 +41,14 @@ env:
   VISIBILITY_TIMEOUT: 30s
   DRAIN_TIMEOUT: 30s
   FORWARD_TIMEOUT: 5s
+  HANDLER_TIMEOUT: 20s
+  RETRY_BACKOFF_BASE: 5s
+  RETRY_BACKOFF_MAX: 5m
+  QUEUE_DEPTH_INTERVAL: 30s
+  OTEL_SERVICE_NAME: workflow-events-consumer
+  OTEL_EXPORTER_OTLP_ENDPOINT: ""
+  OTEL_EXPORTER_OTLP_INSECURE: "false"
+  OTEL_TRACES_SAMPLER_RATIO: "1.0"
 
 # The queue/target/routing registry — rendered verbatim into a ConfigMap and
 # mounted at env.TOPOLOGY_CONFIG_PATH. Same shape as config/topology.example.yaml.
@@ -51,14 +59,22 @@ topology:
     - name: execution
       addr: http://execution-service.internal
       tokenEnv: EXECUTION_SERVICE_TOKEN
+      pathPrefix: /api/v1/internal/events
     - name: definition
       addr: http://definition-service.internal
       tokenEnv: DEFINITION_SERVICE_TOKEN
+      pathPrefix: /api/v1/internal/events
+    - name: workflow-stream-gateway
+      addr: http://workflow-stream-gateway.internal
+      tokenEnv: WORKFLOW_STREAM_GATEWAY_TOKEN
+      pathPrefix: /api/v1/internal/events
   queues:
     - name: membership
       url: https://sqs.us-east-1.amazonaws.com/000000000000/membership-workflow-q
     - name: user
       url: https://sqs.us-east-1.amazonaws.com/000000000000/user-wf-q
+    - name: dashboard
+      url: https://sqs.us-east-1.amazonaws.com/000000000000/wf-workflow-dash-q
   routes:
     DelegationStarted: [execution]
     DelegationEnded: [execution]
@@ -68,10 +84,17 @@ topology:
     DepartmentMembershipRevoked: [definition]
     MembershipRevoked: [definition, execution]
     TenantMembershipsPurged: [execution]
-    # A connector-typed task's dispatch worker only ever receives this event
-    # through this route. This chart declares no workflow-stream-gateway
-    # target, so this route only lists execution.
-    WorkflowTaskCreated: [execution]
+    WorkflowTaskCreated: [workflow-stream-gateway, execution]
+    WorkflowTaskCompleted: [workflow-stream-gateway]
+    WorkflowTaskDeferred: [workflow-stream-gateway]
+    WorkflowTaskReassigned: [workflow-stream-gateway]
+    WorkflowTaskSlaWarning: [workflow-stream-gateway]
+    WorkflowTaskSlaBreached: [workflow-stream-gateway]
+    WorkflowInstancePaused: [workflow-stream-gateway]
+    WorkflowInstanceResumed: [workflow-stream-gateway]
+    WorkflowInstanceCancelled: [workflow-stream-gateway]
+    WorkflowInstanceTerminated: [workflow-stream-gateway]
+    WorkflowInstanceFinished: [workflow-stream-gateway]
     TenderAssigneeOverridden: []
     DepartmentMembershipGranted: []
     DepartmentMembershipLevelChanged: []
@@ -83,6 +106,7 @@ existingSecret: ""
 secretValues:
   EXECUTION_SERVICE_TOKEN: ""
   DEFINITION_SERVICE_TOKEN: ""
+  WORKFLOW_STREAM_GATEWAY_TOKEN: ""
 
 networkPolicy:
   enabled: true

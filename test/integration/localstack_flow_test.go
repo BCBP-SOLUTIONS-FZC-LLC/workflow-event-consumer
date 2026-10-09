@@ -9,13 +9,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/BCBP-SOLUTIONS-FZC-LLC/platform-events/pkg/events"
+	"github.com/BCBP-SOLUTIONS-FZC-LLC/platform-events/v2/pkg/events"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/BCBP-SOLUTIONS-FZC-LLC/workflow-events-consumer/internal/consumer"
 	"github.com/BCBP-SOLUTIONS-FZC-LLC/workflow-events-consumer/internal/forwarder"
-	"github.com/BCBP-SOLUTIONS-FZC-LLC/workflow-events-consumer/internal/observability"
+	"github.com/BCBP-SOLUTIONS-FZC-LLC/workflow-events-consumer/internal/observability/obstest"
 	"github.com/BCBP-SOLUTIONS-FZC-LLC/workflow-events-consumer/test/fixtures"
 	"github.com/BCBP-SOLUTIONS-FZC-LLC/workflow-events-consumer/test/mocks"
 )
@@ -67,7 +67,7 @@ func startConsumer(t *testing.T, c events.Consumer) {
 }
 
 func TestLocalStackFlow_RoutesToOnlyExecution(t *testing.T) {
-	observability.Register()
+	obstest.Setup()
 	setLocalStackCredentials(t)
 	ctx := context.Background()
 	ls := fixtures.NewLocalStackSNSSQS(ctx, t)
@@ -102,10 +102,13 @@ func TestLocalStackFlow_RoutesToOnlyExecution(t *testing.T) {
 
 	assert.Equal(t, 0, def.Count(), "definition should never receive an execution-only event")
 	assert.Equal(t, "exec-token", exec.LastToken())
+	assert.GreaterOrEqual(t, obstest.Sum(t, "platform_messages_processed_total", map[string]string{"event_type": "DelegationStarted"}), 1.0,
+		"the platform-events consumer records the processed message")
+	assert.GreaterOrEqual(t, obstest.Sum(t, "workflow_events_consumer_forward_total", map[string]string{"target": "execution", "result": "ok"}), 1.0)
 }
 
 func TestLocalStackFlow_RoutesToOnlyDefinition(t *testing.T) {
-	observability.Register()
+	obstest.Setup()
 	setLocalStackCredentials(t)
 	ctx := context.Background()
 	ls := fixtures.NewLocalStackSNSSQS(ctx, t)
@@ -142,7 +145,7 @@ func TestLocalStackFlow_RoutesToOnlyDefinition(t *testing.T) {
 }
 
 func TestLocalStackFlow_UnknownTypeBroadcastsToAll(t *testing.T) {
-	observability.Register()
+	obstest.Setup()
 	setLocalStackCredentials(t)
 	ctx := context.Background()
 	ls := fixtures.NewLocalStackSNSSQS(ctx, t)
@@ -171,7 +174,7 @@ func TestLocalStackFlow_UnknownTypeBroadcastsToAll(t *testing.T) {
 }
 
 func TestLocalStackFlow_OneTargetFailsBlocksAck(t *testing.T) {
-	observability.Register()
+	obstest.Setup()
 	setLocalStackCredentials(t)
 	ctx := context.Background()
 	ls := fixtures.NewLocalStackSNSSQS(ctx, t)

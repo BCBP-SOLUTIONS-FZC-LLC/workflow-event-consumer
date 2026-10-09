@@ -7,12 +7,10 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/BCBP-SOLUTIONS-FZC-LLC/platform-gincommon/pkg/gincommon"
 )
 
-// defaultPathPrefix is used when a target declares no pathPrefix of its own
-// in topology config — every target that exists today serves this same
-// versioned base path, so an empty topology entry still works without
-// requiring every deployment to repeat it.
 const defaultPathPrefix = "/api/v1/internal/events"
 
 type Target struct {
@@ -38,11 +36,6 @@ func NewTarget(name, addr, pathPrefix, token string, timeout time.Duration) *Tar
 
 func (t *Target) forward(ctx context.Context, eventType string, body []byte) error {
 	path := t.pathPrefix
-	// categoryFor's subpaths only exist on the execution target (category.go's
-	// own doc comment) — an event type routed to multiple targets, like
-	// WorkflowTaskCreated (execution + workflow-stream-gateway), must only
-	// get the category subpath on execution; every other target only ever
-	// serves its one bare pathPrefix endpoint.
 	if t.Name == executionTargetName {
 		if c, ok := categoryFor(eventType); ok {
 			path = t.pathPrefix + "/" + c
@@ -54,6 +47,8 @@ func (t *Target) forward(ctx context.Context, eventType string, body []byte) err
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("x-internal-token", t.token)
+
+	gincommon.InjectTraceContext(ctx, req.Header)
 
 	resp, err := t.http.Do(req)
 	if err != nil {

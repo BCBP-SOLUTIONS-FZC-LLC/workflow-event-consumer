@@ -39,7 +39,7 @@ docker compose up
 ## Project layout
 
 ```
-cmd/event-consumer/       ← Composition root — config, metrics, consumer wiring, graceful shutdown
+cmd/event-consumer/       ← Composition root — config, telemetry, consumer wiring and supervision, graceful shutdown
 cmd/mock-downstream/       ← Minimal standalone binary used only by docker-compose (not a test double)
 internal/
   config/                 ← Typed env-derived Config (non-topology settings only) + validation
@@ -51,7 +51,7 @@ internal/
   forwarder/               ← Transport-only concurrent fan-out to named HTTP
                               targets (forwarder.go, target.go) — no event-type
                               knowledge of its own
-  observability/           ← Prometheus metrics (Register(), nil until called)
+  observability/           ← Collectors built with gincommon constructors, and telemetry initialisation
 config/
   topology.example.yaml    ← Template — copy to topology.yaml and fill in real values
   topology.local.yaml      ← Real, checked-in topology for docker-compose (LocalStack + mocks)
@@ -106,3 +106,12 @@ in `internal/forwarder/target.go`.
 - Update [ARCHITECTURE.md](ARCHITECTURE.md) and/or
   [docs/runbook.md](docs/runbook.md) if the change affects what they
   document.
+
+## Conventions
+
+- Non-test code carries no comments except `//go:` and `//nolint` directives.
+- Logs, metrics and traces go through `platform-gincommon`, and every SQS consume, dead-letter and event envelope through `platform-events`. New collectors are `workflow_events_consumer_*`, built in `internal/observability`; `make metrics-lint` must pass.
+- A fix starts with a test of the correct behaviour that fails, then the change.
+- A topology change updates `config/topology.example.yaml`, the chart's `topology` values and `deploy/aws/policy.json` together; a test fails when they differ.
+- Never add a `replace` directive to `go.mod`.
+- A change to behaviour updates the README, `ARCHITECTURE.md`, the runbook and the CHANGELOG in the same pull request.

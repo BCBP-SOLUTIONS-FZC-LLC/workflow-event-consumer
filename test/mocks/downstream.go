@@ -1,6 +1,3 @@
-// Package mocks provides a mock downstream service standing in for
-// execution_service or definition_service's POST /internal/events endpoint,
-// for use across unit and integration tests.
 package mocks
 
 import (
@@ -10,7 +7,7 @@ import (
 	"net/http/httptest"
 	"sync"
 
-	"github.com/BCBP-SOLUTIONS-FZC-LLC/platform-events/pkg/events"
+	"github.com/BCBP-SOLUTIONS-FZC-LLC/platform-events/v2/pkg/events"
 )
 
 type Downstream struct {

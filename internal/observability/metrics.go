@@ -8,6 +8,11 @@ import (
 	"github.com/BCBP-SOLUTIONS-FZC-LLC/platform-gincommon/pkg/gincommon"
 )
 
+const (
+	Domain      = "workflow"
+	ServiceName = "workflow-events-consumer"
+)
+
 var (
 	ForwardTotal           *prometheus.CounterVec
 	ForwardDurationSeconds *prometheus.HistogramVec
@@ -17,30 +22,27 @@ var (
 )
 
 func Register() {
-	registerOnce.Do(register)
+	registerOnce.Do(registerServiceMetrics)
 }
 
-func register() {
-	ForwardTotal = prometheus.NewCounterVec(prometheus.CounterOpts{
-		Name: "workflow_events_consumer_forward_total",
-		Help: "Count of per-target HTTP forward attempts, by queue, target, and result.",
-	}, []string{"queue", "target", "result"})
+func must[C any](c C, err error) C {
+	if err != nil {
+		panic("metrics: register service collector: " + err.Error())
+	}
+	return c
+}
 
-	ForwardDurationSeconds = prometheus.NewHistogramVec(prometheus.HistogramOpts{
-		Name:    "workflow_events_consumer_forward_duration_seconds",
-		Help:    "Per-target HTTP forward latency, by queue and target.",
-		Buckets: prometheus.DefBuckets,
-	}, []string{"queue", "target"})
-
-	HandlerDurationSeconds = prometheus.NewHistogramVec(prometheus.HistogramOpts{
-		Name:    "workflow_events_consumer_handler_duration_seconds",
-		Help:    "End-to-end per-message handler latency, by queue and result.",
-		Buckets: prometheus.DefBuckets,
-	}, []string{"queue", "result"})
-
-	// Registered against gincommon.MetricsRegisterer(), not
-	// prometheus.MustRegister on the default registry directly — the same
-	// convention definition_service and execution_service already follow, so
-	// a test that swaps in an isolated registry sees these collectors too.
-	gincommon.MetricsRegisterer().MustRegister(ForwardTotal, ForwardDurationSeconds, HandlerDurationSeconds)
+func registerServiceMetrics() {
+	ForwardTotal = must(gincommon.NewCounterVec(nil,
+		"workflow_events_consumer_forward_total",
+		"Count of per-target HTTP forward attempts, by queue, target, and result.",
+		"queue", "target", "result"))
+	ForwardDurationSeconds = must(gincommon.NewHistogramVec(nil,
+		"workflow_events_consumer_forward_duration_seconds",
+		"Per-target HTTP forward latency, by queue and target.",
+		prometheus.DefBuckets, "queue", "target"))
+	HandlerDurationSeconds = must(gincommon.NewHistogramVec(nil,
+		"workflow_events_consumer_handler_duration_seconds",
+		"End-to-end per-message handler latency, by queue and result.",
+		prometheus.DefBuckets, "queue", "result"))
 }

@@ -1,9 +1,3 @@
-// cmd/mock-downstream is a throwaway standalone binary used only by
-// docker-compose to stand in for execution_service or definition_service's
-// POST /internal/events endpoint, so `docker compose up` works without
-// either real service checked out. It is not the same thing as
-// test/mocks.Downstream, which is a Go test double used by unit and
-// integration tests — this is a real, separately-run process.
 package main
 
 import (

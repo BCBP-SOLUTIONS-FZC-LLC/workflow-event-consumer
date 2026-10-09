@@ -7,11 +7,6 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// Load reads and validates the topology file at path, failing fast on any
-// structural problem — a duplicate name, a route pointing at an undeclared
-// target, a missing required field. This runs once at startup, so a mistake
-// here should stop the process rather than surface later as a silently
-// dropped or misrouted event.
 func Load(path string) (Config, error) {
 	raw, err := os.ReadFile(path)
 	if err != nil {

@@ -33,9 +33,15 @@ func TestResolveTargets_DevAllowsMissingToken(t *testing.T) {
 	assert.Len(t, targets, 2)
 }
 
-func TestResolveTargets_ProdRequiresToken(t *testing.T) {
-	_, err := testConfig().ResolveTargets("prod", func(string) string { return "" }, time.Second)
-	assert.Error(t, err)
+func TestResolveTargets_RequiresATokenOutsideDevAndLocal(t *testing.T) {
+	for _, env := range []string{"test", "staging", "prod"} {
+		_, err := testConfig().ResolveTargets(env, func(string) string { return "" }, time.Second)
+		assert.Error(t, err, env)
+	}
+	for _, env := range []string{"dev", "local"} {
+		_, err := testConfig().ResolveTargets(env, func(string) string { return "" }, time.Second)
+		assert.NoError(t, err, env)
+	}
 }
 
 func TestTargetNames(t *testing.T) {

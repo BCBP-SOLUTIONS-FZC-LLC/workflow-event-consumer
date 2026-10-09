@@ -10,6 +10,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- Telemetry through `platform-gincommon` and `platform-events`: the `platform_*` series (including `platform_messages_*`, `platform_dlq_*` and `platform_queue_depth`) in every scrape, `make metrics-lint`, a generated `docs/observability/metric-registry.md`, and a scrape test that also checks every metric an alert rule names exists.
+- A per-message handler timeout, redelivery backoff, queue-depth metrics and malformed-body logging on every consumer (`HANDLER_TIMEOUT`, `RETRY_BACKOFF_BASE`, `RETRY_BACKOFF_MAX`, `QUEUE_DEPTH_INTERVAL`).
+- A supervisor that stops the process, so the pod restarts, when any consumer exits with an error.
+- The forward duration metric is recorded, and forwarded requests carry the trace context.
+- Alerts for failing messages, dead-lettered messages and handler panics.
+- Tests that fail when the chart's topology or `deploy/aws/policy.json` differs from `config/topology.example.yaml`.
+- A release workflow (changelog gate, image build, Cosign signature, GitHub Release), a changelog check, `.editorconfig`, `helm-lint`, `lint-workflows`, a Dockerfile digest pin check, VERSIONING.
 - Initial implementation: stateless SNS → SQS → HTTP bridge subscribing to
   `membership`, `user`, and `template` SQS queues and forwarding each event
   to `execution_service` and/or `definition_service`'s `POST /internal/events`.
@@ -45,3 +52,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   both unit tests and the LocalStack integration test.
 - Full CI (`validate-quality`, `validate-test`), Dockerfile, and Makefile
   modeled on this org's existing service conventions.
+
+### Changed
+
+- **Platform libraries** `platform-events/v2` v2.1.0 and `platform-gincommon` v1.6.0; Go 1.26.9. Collectors are built with `platform-gincommon` constructors.
+- `APP_ENV` must be one of `local`, `dev`, `test`, `staging`, `prod`; a malformed number or duration fails startup instead of falling back to its default; every target's token is required outside dev and local, not only in prod; settings are cross-checked (handler timeout within the visibility timeout, forward timeout within the handler timeout).
+- The chart's topology matches the example: the workflow-stream-gateway target, the dashboard queue and the 11 dashboard routes are present, and the IAM policy lists the dashboard queue.
+- The health server records HTTP metrics and recovers panics through the gincommon middleware, and sets timeouts.
+- Non-test code carries no comments.

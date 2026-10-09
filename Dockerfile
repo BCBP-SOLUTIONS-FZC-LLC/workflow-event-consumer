@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1.7
-FROM golang:1.26-alpine AS builder
+FROM golang:1.26-alpine@sha256:c95332c2af86b6d89b91bd0500f4b9529ccbd090a0d1855c6d1ceaa142ae8615 AS builder
 
 ARG BUILD_VERSION=dev
 ENV CGO_ENABLED=0 \
@@ -35,7 +35,7 @@ RUN go build \
 
 # gcr.io/distroless/static-debian12: no shell, no libc, no package manager.
 # Runs as nonroot (uid 65532) by default.
-FROM gcr.io/distroless/static-debian12:nonroot AS event-consumer
+FROM gcr.io/distroless/static-debian12:nonroot@sha256:afa5c872c891853ca7fcf1f12c3edb23f7eeef36189728842dd51042ff57f7ab AS event-consumer
 
 COPY --from=builder /build/bin/event-consumer /event-consumer
 
@@ -45,7 +45,7 @@ ENTRYPOINT ["/event-consumer"]
 
 # mock-downstream is docker-compose-only — never pushed to a real registry.
 # Alpine (not distroless) so docker-compose's wget-based healthcheck works.
-FROM alpine:3.20 AS mock-downstream
+FROM alpine:3.20@sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc AS mock-downstream
 
 COPY --from=builder /build/bin/mock-downstream /mock-downstream
 USER nobody

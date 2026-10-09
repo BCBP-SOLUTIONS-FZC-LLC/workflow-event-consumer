@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/BCBP-SOLUTIONS-FZC-LLC/workflow-events-consumer/internal/observability"
 )
@@ -44,7 +45,9 @@ func (f *Forwarder) Forward(ctx context.Context, queue string, targetNames []str
 		wg.Add(1)
 		go func(t *Target) {
 			defer wg.Done()
+			start := time.Now()
 			err := t.forward(ctx, eventType, body)
+			observability.ForwardDurationSeconds.WithLabelValues(queue, t.Name).Observe(time.Since(start).Seconds())
 			result := "ok"
 			if err != nil {
 				result = "error"

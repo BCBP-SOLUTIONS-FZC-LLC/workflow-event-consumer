@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/BCBP-SOLUTIONS-FZC-LLC/platform-events/pkg/events"
+	"github.com/BCBP-SOLUTIONS-FZC-LLC/platform-events/v2/pkg/events"
 
 	"github.com/BCBP-SOLUTIONS-FZC-LLC/workflow-events-consumer/internal/config"
 	"github.com/BCBP-SOLUTIONS-FZC-LLC/workflow-events-consumer/internal/consumer"
@@ -30,12 +30,16 @@ func buildDeps(cfg *config.Config, logger consumer.Logger) (*deps, error) {
 	router := consumer.NewRouter(topo.Routes, topo.TargetNames())
 
 	opts := consumer.Options{
-		Region:            cfg.AWSRegion,
-		EndpointURL:       cfg.AWSEndpointURL,
-		Concurrency:       cfg.ConsumerConcurrency,
-		VisibilityTimeout: cfg.VisibilityTimeout,
-		DrainTimeout:      cfg.DrainTimeout,
-		Logger:            logger,
+		Region:             cfg.AWSRegion,
+		EndpointURL:        cfg.AWSEndpointURL,
+		Concurrency:        cfg.ConsumerConcurrency,
+		VisibilityTimeout:  cfg.VisibilityTimeout,
+		DrainTimeout:       cfg.DrainTimeout,
+		HandlerTimeout:     cfg.HandlerTimeout,
+		RetryBackoffBase:   cfg.RetryBackoffBase,
+		RetryBackoffMax:    cfg.RetryBackoffMax,
+		QueueDepthInterval: cfg.QueueDepthInterval,
+		Logger:             logger,
 	}
 
 	consumers := make([]events.Consumer, 0, len(topo.Queues))

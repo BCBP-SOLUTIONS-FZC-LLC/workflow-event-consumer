@@ -19,9 +19,9 @@ consumers.
 ```mermaid
 graph TD
     subgraph cmd["Composition Root — cmd/event-consumer/"]
-        main["main.go\nload config · register metrics\nbuild deps · start consumers\ngraceful shutdown (SIGINT/SIGTERM → drain)"]
+        main["main.go\nload config · init telemetry\nbuild deps · supervise consumers\ngraceful shutdown (SIGINT/SIGTERM → drain)"]
         deps["deps.go\nbuildDeps — loads topology.yaml,\nwires Forwarder + N SQS consumers"]
-        health["health.go\n/healthz · /metrics (promhttp)"]
+        health["health.go\n/healthz · /metrics (gincommon)"]
     end
 
     subgraph topology["internal/topology/"]
@@ -41,7 +41,7 @@ graph TD
     end
 
     subgraph observability["internal/observability/"]
-        metrics["metrics.go\nRegister() — forward_total,\nforward_duration_seconds,\nhandler_duration_seconds"]
+        metrics["metrics.go · telemetry.go\nInitTelemetry — identity, tracing,\nforward_total, forward_duration_seconds,\nhandler_duration_seconds"]
     end
 
     subgraph external["External"]
@@ -78,6 +78,18 @@ about event types. `internal/topology` owns the queue/target/routing
 is the only place that ties routing and forwarding together.
 
 ---
+
+## Process and failure model
+
+One process runs one SQS consumer per queue in `config/topology.yaml`, all started through `platform-events`. A supervisor watches them: when any consumer exits with an error, the process stops the others and exits non-zero, so the pod restarts rather than idling with a dead consumer. A signal drains every consumer for up to the grace period.
+
+Each consumer is built with a per-message handler timeout, redelivery backoff, and queue-depth metrics. The handler timeout never exceeds the visibility timeout, and the forward timeout never exceeds the handler timeout, so a hung downstream cannot keep a message invisible past its redelivery.
+
+The health server on `HEALTH_PORT` serves `/healthz` and `/metrics` behind the gincommon observability middleware, with read-header, read, write and idle timeouts. Outbound forwards carry the trace context.
+
+## Observability
+
+Logs, metrics and traces go through `platform-gincommon`. The service metrics are `workflow_events_consumer_forward_total`, `..._forward_duration_seconds` and `..._handler_duration_seconds`; the SQS consumer series (`platform_messages_*`, `platform_dlq_*`, `platform_queue_depth`) come from `platform-events`. [docs/observability/](docs/observability/) documents the tiers and the generated inventory, and `make metrics-lint` enforces the standard.
 
 ## Routing: why per-event-type, not broadcast
 

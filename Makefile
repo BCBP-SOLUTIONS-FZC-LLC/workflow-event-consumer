@@ -9,6 +9,8 @@ GOLANGCI_VERSION    := v2.12.2
 GOVULNCHECK_VERSION := v1.1.4
 HADOLINT_VERSION    := v2.12.0
 TRIVY_VERSION       := 0.71.2
+KUBECONFORM_VERSION := 0.8.0
+ACTIONLINT_VERSION  := v1.7.12
 
 TESTCONTAINERS_LOCALSTACK_IMAGE := localstack/localstack:3
 
@@ -21,6 +23,9 @@ GOLANGCI    := $(TOOLS_DIR)/golangci-lint
 GOVULNCHECK := $(TOOLS_DIR)/govulncheck
 HADOLINT    := $(TOOLS_DIR)/hadolint
 TRIVY       := $(TOOLS_DIR)/trivy
+KUBECONFORM := $(TOOLS_DIR)/kubeconform
+ACTIONLINT  := $(TOOLS_DIR)/actionlint
+HELM        ?= helm
 
 BUILD_VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 LDFLAGS       := -X main.version=$(BUILD_VERSION)
@@ -29,7 +34,7 @@ COVER_PROFILE   := $(COVERAGE_DIR)/coverage.out
 COVER_HTML      := $(COVERAGE_DIR)/coverage.html
 COVER_THRESHOLD := 90
 
-.PHONY: all tools tools-integration setup install-hooks build test test-integration test-ci \
+.PHONY: metrics-lint metrics-inventory helm-lint lint-workflows pin-base-images all tools tools-integration setup install-hooks build test test-integration test-ci \
         merge-coverage cover cover-func cover-html cover-check \
         tidy fmt-check fix check lint lint-fix vuln \
         docker-build docker-build-mock-downstream docker-lint docker-trivy docker-check \
@@ -75,6 +80,13 @@ tools:
 	curl -sLo /tmp/trivy.tar.gz \
 	  "https://github.com/aquasecurity/trivy/releases/download/v$(TRIVY_VERSION)/trivy_$(TRIVY_VERSION)_$$TRIVY_OS_ARCH.tar.gz" && \
 	tar -xzf /tmp/trivy.tar.gz -C $(TOOLS_DIR) trivy && rm /tmp/trivy.tar.gz
+	GOBIN=$(PWD)/$(TOOLS_DIR) go install github.com/rhysd/actionlint/cmd/actionlint@$(ACTIONLINT_VERSION)
+	@OS=$$(uname -s | tr '[:upper:]' '[:lower:]'); ARCH=$$(uname -m); \
+	if [ "$$ARCH" = "aarch64" ]; then ARCH="arm64"; fi; \
+	if [ "$$ARCH" = "x86_64" ]; then ARCH="amd64"; fi; \
+	curl -sLo /tmp/kubeconform.tar.gz \
+	  "https://github.com/yannh/kubeconform/releases/download/v$(KUBECONFORM_VERSION)/kubeconform-$$OS-$$ARCH.tar.gz" && \
+	tar -xzf /tmp/kubeconform.tar.gz -C $(TOOLS_DIR) kubeconform && rm /tmp/kubeconform.tar.gz
 	@echo "✓ tools installed to $(TOOLS_DIR)/"
 
 ## tools-integration: Pre-pull the Docker image used by the LocalStack integration test
@@ -164,6 +176,8 @@ check:
 	@$(MAKE) fmt-check
 	$(GOLANGCI) run --build-tags=integration ./...
 	go vet ./cmd/... ./internal/...
+	@$(MAKE) metrics-lint
+	@$(MAKE) helm-lint
 	@$(MAKE) cover-check
 	@echo "✓ all checks passed"
 
@@ -174,6 +188,39 @@ lint:
 ## lint-fix: Run golangci-lint with auto-fix
 lint-fix:
 	$(GOLANGCI) run --build-tags=integration --fix ./...
+
+## metrics-lint: Observability standard: collector naming, metricslint on a real scrape, alert and doc references, inventory drift
+metrics-lint:
+	@bash .github/scripts/check-metric-naming.sh
+	@bash .github/scripts/metricslint.sh
+
+## metrics-inventory: Regenerate docs/observability/metric-registry.md from the registry and a real scrape
+metrics-inventory:
+	@METRICS_INVENTORY_WRITE=1 bash .github/scripts/metricslint.sh
+
+## lint-workflows: Lint GitHub Actions workflow YAML
+lint-workflows:
+	$(ACTIONLINT)
+
+HELM_LINT_VALUES := --set-string secretValues.EXECUTION_SERVICE_TOKEN=placeholder \
+	  --set-string secretValues.DEFINITION_SERVICE_TOKEN=placeholder \
+	  --set-string secretValues.WORKFLOW_STREAM_GATEWAY_TOKEN=placeholder
+
+## helm-lint: Lint the Helm chart and validate its rendered manifests against the Kubernetes API schema
+helm-lint:
+	$(HELM) lint deploy/helm $(HELM_LINT_VALUES)
+	@mkdir -p $(TOOLS_DIR)
+	$(HELM) template deploy/helm $(HELM_LINT_VALUES) > $(TOOLS_DIR)/helm-rendered.yaml
+	$(KUBECONFORM) -strict -skip ServiceMonitor $(TOOLS_DIR)/helm-rendered.yaml
+	@echo "✓ helm chart valid"
+
+## pin-base-images: Resolve current digests for the Dockerfile base images and pin them
+pin-base-images:
+	@for image in golang:1.26-alpine gcr.io/distroless/static-debian12:nonroot alpine:3.20; do \
+	  digest=$$(docker buildx imagetools inspect $$image | awk '/^Digest:/{print $$2; exit}'); \
+	  escaped=$$(printf '%s' "$$image" | sed 's/[.]/\\./g'); \
+	  sed -E -i.bak "s|^(FROM $$escaped)(@sha256:[0-9a-f]+)?( AS [A-Za-z0-9_-]+)?$$|\\1@$$digest\\3|" Dockerfile; \
+	done; rm -f Dockerfile.bak; echo "Pinned base images"
 
 ## vuln: Run govulncheck against dependencies
 vuln:

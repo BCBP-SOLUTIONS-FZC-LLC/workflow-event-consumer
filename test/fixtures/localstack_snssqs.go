@@ -33,10 +33,6 @@ type LocalStackSNSSQS struct {
 	Queues      map[string]TopicQueue
 }
 
-// SNS topic names may only contain ASCII letters, numbers, underscores, and
-// hyphens — the dotted event-family names used elsewhere (iam.membership.events)
-// are logical names, not valid SNS resource names, so the actual topics use
-// hyphens instead.
 var Topologies = []struct {
 	Topic string
 	Queue string

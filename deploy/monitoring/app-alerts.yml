@@ -36,3 +36,33 @@ groups:
         annotations:
           summary: "workflow-events-consumer is down"
           description: "No successful /metrics scrape for 5m — the bridge may not be consuming any queue."
+
+      - alert: WorkflowEventsConsumerMessagesFailing
+        expr: |
+          sum by (queue, reason) (rate(platform_messages_failed_total{job="workflow-events-consumer"}[5m])) > 0
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "workflow-events-consumer messages failing on queue {{ $labels.queue }}"
+          description: >
+            Messages on queue "{{ $labels.queue }}" have failed processing for 10m
+            (reason "{{ $labels.reason }}"). Failed messages are redelivered with backoff
+            until the queue's maxReceiveCount moves them to its dead-letter queue.
+
+      - alert: WorkflowEventsConsumerDeadLettered
+        expr: |
+          sum by (queue) (increase(platform_dlq_messages_total{job="workflow-events-consumer", operation="consume"}[5m])) > 0
+        labels:
+          severity: page
+        annotations:
+          summary: "workflow-events-consumer dead-lettered messages from queue {{ $labels.queue }}"
+          description: "A message exhausted its deliveries or was malformed and moved to the dead-letter queue. See docs/runbook.md."
+
+      - alert: WorkflowEventsConsumerHTTPPanic
+        expr: increase(platform_http_panics_total{job="workflow-events-consumer"}[5m]) > 0
+        labels:
+          severity: critical
+        annotations:
+          summary: "A workflow-events-consumer HTTP handler panicked"
+          description: "The health and metrics server recovered a panic. Check the logs for the stack trace."

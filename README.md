@@ -1,17 +1,48 @@
 # workflow-events-consumer
 
-A stateless SNS → SQS → HTTP bridge. It subscribes to a set of SQS queues and
-forwards each event envelope, unmodified, to whichever downstream service's
-`POST /api/v1/internal/events` endpoint actually needs it. It never inspects or
-decodes the payload beyond reading its event type for routing, and holds no
-database of its own — duplicate delivery is absorbed by each downstream
-service's own idempotency.
+The shared SNS → SQS → HTTP bridge of the BCBP Workflow Engine: it consumes a set of SQS queues and forwards each event envelope, unmodified, to the downstream service whose internal events endpoint needs it.
 
-See [ARCHITECTURE.md](ARCHITECTURE.md) for the component model, routing
-rationale, and ack-semantics sequence diagrams. See
-[docs/runbook.md](docs/runbook.md) for the event routing catalogue and
-on-call procedures. See [CONTRIBUTING.md](CONTRIBUTING.md) for the
-development workflow and PR process.
+**Repository:** `github.com/BCBP-SOLUTIONS-FZC-LLC/workflow-events-consumer`  
+**Module:** Go 1.26.9 · private module · a containerised microservice not yet deployed to any live environment
+
+---
+
+## Mental model
+
+```text
+SNS ──► SQS queues ──► Events Consumer ──HTTP──► Execution / Definition / Stream Gateway
+                          topology.yaml: queues, targets, routing
+```
+
+| Concern | What this service owns | What it does NOT own |
+| --- | --- | --- |
+| **Consumption** | One SQS consumer per configured queue, started through `platform-events` | The queues, their redrive policy and dead-letter queues: infrastructure owns them |
+| **Routing** | The topology file that maps each event type to its target services | What an event means: the producer owns the payload and the target owns the handling |
+| **Forwarding** | One authenticated `POST` of the unmodified envelope per target, all-or-nothing per message | Idempotency: every target absorbs a redelivered envelope itself |
+| **Dedup and storage** | Nothing: the service has no database and no inbox | Processed-event tables: each target keeps its own |
+
+**Source of truth for one contract:** the topology file, [config/topology.example.yaml](config/topology.example.yaml).
+
+---
+
+## Why this service exists
+
+Without a shared bridge, every service would run its own SQS consumers, retry policy and dead-letter handling. Centralising consumption gives one place that owns queue permissions, backoff, the per-message deadline and the consume metrics, and a topology file where a new queue, target or route is a configuration change rather than a code change.
+
+---
+
+## Contents
+
+- [Configuration](#configuration)
+- [Local development](#local-development) and [Testing](#testing)
+- [Architecture](#architecture)
+- [Deployment](#deployment), [Observability](#observability), [Security](#security)
+- [CI](#ci), [Versioning and releases](#versioning-and-releases)
+- [Out of scope](#out-of-scope) and [See also](#see-also)
+
+> **Architecture** — [ARCHITECTURE.md](ARCHITECTURE.md). **On-call** — [docs/runbook.md](docs/runbook.md). **Contributing** — [CONTRIBUTING.md](CONTRIBUTING.md).
+
+---
 
 ## Configuration
 
@@ -26,7 +57,7 @@ its own token.
 
 | Env var | Purpose |
 | --- | --- |
-| `APP_ENV` | `dev` or `prod` — `prod` requires every target's token env var to be set |
+| `APP_ENV` | One of `local`, `dev`, `test`, `staging`, `prod`; any other value fails startup. Outside `dev` and `local` every target's token env var must be set |
 | `HEALTH_PORT` | `/healthz` and `/metrics` listen port (default `8082`) |
 | `TOPOLOGY_CONFIG_PATH` | Path to the topology YAML file (default `config/topology.yaml`) |
 | `AWS_REGION`, `AWS_ENDPOINT_URL` | AWS SDK region / LocalStack override |
@@ -34,6 +65,10 @@ its own token.
 | `VISIBILITY_TIMEOUT` | SQS visibility timeout per queue (default `30s`) |
 | `DRAIN_TIMEOUT` | Graceful-shutdown grace period per consumer (default `30s`) |
 | `FORWARD_TIMEOUT` | Per-target HTTP client timeout (default `5s`) |
+| `HANDLER_TIMEOUT` | Per-message deadline (default `20s`); must not exceed `VISIBILITY_TIMEOUT`, and `FORWARD_TIMEOUT` must not exceed it |
+| `RETRY_BACKOFF_BASE`, `RETRY_BACKOFF_MAX` | Redelivery backoff after a failed message (defaults `5s`, `5m`) |
+| `QUEUE_DEPTH_INTERVAL` | Cadence of the queue-depth metric (default `30s`) |
+| `OTEL_SERVICE_NAME`, `OTEL_EXPORTER_OTLP_ENDPOINT` | Trace and metric identity; export is off when the endpoint is unset or `none` |
 | *(one per target, named in topology.yaml's `tokenEnv`)* | e.g. `EXECUTION_SERVICE_TOKEN`, `DEFINITION_SERVICE_TOKEN` |
 
 Each downstream service mints and rotates its own `INTERNAL_API_TOKEN`
@@ -43,6 +78,8 @@ AWS SDK credentials come from its default provider chain (IRSA / instance
 role in real environments); against LocalStack, set
 `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY` to any static value — the
 consumer has no static-credentials injection point of its own.
+
+A malformed number or duration fails startup rather than falling back to a default.
 
 ## Local development
 
@@ -61,42 +98,67 @@ gh auth token > .go_private_token   # or any token with read access to this org'
 docker compose up
 ```
 
-## Running tests
+## Testing
 
 ```sh
-make test              # unit tests (uses test/mocks' mock downstreams)
-make test-integration  # requires Docker; runs against real LocalStack SNS/SQS
-make test-ci            # both suites, merged coverage
-make cover-check        # test-ci + coverage threshold gate
+make test              # unit tests, using test/mocks' mock downstreams
+make test-integration  # requires Docker; real LocalStack SNS and SQS
+make test-ci           # both suites, merged coverage
+make check             # format, lint, vet, the observability standard, chart lint and the coverage gate
 ```
 
-`test/mocks` provides a reusable mock downstream service (`mocks.Downstream`)
-standing in for any real target's `/api/v1/internal/events` endpoint — used by both
-the unit tests and the LocalStack integration tests. `cmd/mock-downstream` is
-a separate, minimal standalone binary (not a test double) used only by
-`docker compose up` for a working local dev loop.
+`test/mocks` provides a reusable mock downstream (`mocks.Downstream`) used by the unit and integration tests; `cmd/mock-downstream` is a standalone binary used only by `docker compose up`.
 
-## Other Makefile targets
+| Command | What it does |
+| --- | --- |
+| `make lint` / `make vuln` | golangci-lint, dependency vulnerabilities |
+| `make metrics-lint` / `make metrics-inventory` | Observability standard, regenerate the inventory |
+| `make helm-lint` / `make lint-workflows` | Chart validation, workflow lint |
+| `make docker-check` / `make pin-base-images` | Dockerfile lint and scan, digest pins |
 
-```sh
-make lint          # golangci-lint
-make vuln          # govulncheck
-make check         # fmt + lint + vet + coverage-gated tests — full local CI pass
-make install-hooks # install .githooks/pre-commit
-make docker-build  # build the container image (requires GO_PRIVATE_TOKEN)
-make docker-check  # Dockerfile lint (hadolint) + dependency CVE scan (trivy)
-make help          # list all targets
-```
+## Architecture
 
-## CI
+`cmd/event-consumer` is the composition root: configuration, telemetry, one consumer per queue, a supervisor that exits the process when a consumer stops, and the health server. `internal/topology` loads the queue, target and routing file; `internal/consumer` builds each SQS consumer and resolves an event type to targets; `internal/forwarder` is transport only. Dependency ownership: `platform-gincommon` owns logging, tracing, HTTP middleware and every metric constructor; `platform-events` owns the SQS consumer, the envelope, dead-lettering and the consume metrics. Details are in [ARCHITECTURE.md](ARCHITECTURE.md).
 
-`.github/workflows/ci.yml` fans out to two reusable workflows:
-
-- **validate-quality** — format, `go mod tidy` drift, `go vet`, `golangci-lint`, `govulncheck`.
-- **validate-test** — build, unit + integration tests (race + coverage), coverage threshold gate.
+---
 
 ## Deployment
 
-See [deploy/helm](deploy/helm) for the Kubernetes Helm chart and
-[deploy/aws](deploy/aws) for the IAM policy this service's IRSA role needs
-(SQS receive/delete/change-visibility only — it never publishes).
+One image from the `Dockerfile` (target `event-consumer`), base images pinned by digest. The chart in `deploy/helm` has a Deployment, a PDB, a NetworkPolicy, an optional HPA and `ServiceMonitor`, and renders the topology into a ConfigMap. `deploy/aws` holds the IAM policy of the service's role: SQS receive, delete, change-visibility and attribute reads on the topology's queues, and nothing else. A test fails when the chart's topology or the policy differs from `config/topology.example.yaml`. `deploy/monitoring/app-alerts.yml` holds the alert rules.
+
+## Observability
+
+Every series carries `domain` (`workflow`), `service` (`workflow-events-consumer`) and `environment`. Service metrics are `workflow_events_consumer_*`; the consumer, dead-letter and queue-depth series are `platform_*` from `platform-events`. [docs/observability/metric-registry.md](docs/observability/metric-registry.md) is generated from a real scrape, and `make metrics-lint` fails on a collector built outside `internal/observability`, a name the standard rejects, an alert naming a metric that does not exist, or a stale inventory. Forwarded requests carry the trace context.
+
+## Security
+
+- Each target has its own token, sent as `x-internal-token`; outside dev and local startup fails if any target's token is missing.
+- The IAM role can only consume SQS; it never publishes and never touches S3, KMS or Glue.
+- The health server serves `/healthz` and `/metrics` only, with read, write and idle timeouts.
+- Container: distroless, non-root, read-only root filesystem, all capabilities dropped.
+
+---
+
+## CI
+
+Pull requests and pushes run `ci.yml`: a `ci-gate` job skips draft pull requests and those labelled `skip-ci`, then `validate-quality` and `validate-test`. Pull requests that change only Markdown or `docs/` skip CI. `changelog-check.yml` requires a CHANGELOG entry on pull requests that touch code or configuration.
+
+## Versioning and releases
+
+Releases are Git tags `vMAJOR.MINOR.PATCH` cut on the merged commit after the CHANGELOG `[Unreleased]` section moves to a versioned heading. The `Release` workflow refuses a tag with no CHANGELOG entry, builds, scans and signs the image, and creates the GitHub Release. See [VERSIONING.md](VERSIONING.md) and [CHANGELOG.md](CHANGELOG.md).
+
+---
+
+## Out of scope
+
+| Concern | Owner |
+| --- | --- |
+| Queues, topics, subscriptions and redrive policies | Infrastructure |
+| Event payload schemas | The producing services |
+| Processing and deduplicating an event | Each target service |
+
+This repository carries no `LICENSE` file: it is private and proprietary to BCBP Solutions.
+
+## See also
+
+- [ARCHITECTURE.md](ARCHITECTURE.md) · [CONTRIBUTING.md](CONTRIBUTING.md) · [VERSIONING.md](VERSIONING.md) · [CHANGELOG.md](CHANGELOG.md) · [docs/runbook.md](docs/runbook.md)

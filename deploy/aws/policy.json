@@ -12,7 +12,8 @@
       ],
       "Resource": [
         "arn:aws:sqs:*:*:membership-workflow-q",
-        "arn:aws:sqs:*:*:user-wf-q"
+        "arn:aws:sqs:*:*:user-wf-q",
+        "arn:aws:sqs:*:*:wf-workflow-dash-q"
       ]
     }
   ]
