@@ -84,3 +84,14 @@ func TestHealthServer_ReportsAStalledReceive(t *testing.T) {
 	srv.Handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/healthz", nil))
 	assert.Equal(t, http.StatusServiceUnavailable, rec.Code)
 }
+
+func TestReceiveWatch_UnhealthyUntilTheFirstReceiveSucceeds(t *testing.T) {
+	now := time.Unix(1000, 0)
+	g := &fakeGatherer{successes: 0}
+	w := newReceiveWatch(g, 2*time.Minute, func() time.Time { return now })
+
+	assert.False(t, w.healthy(), "a pod whose first receive has not succeeded is not ready, so a bad rollout never replaces a healthy pod")
+
+	g.successes = 1
+	assert.True(t, w.healthy())
+}

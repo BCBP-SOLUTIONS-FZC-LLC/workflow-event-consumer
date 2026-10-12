@@ -63,12 +63,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Changed
 
 - `APP_ENV` and `AWS_REGION` are required with no default, so an unset value no longer runs as `dev` in `us-east-1`; `HANDLER_TIMEOUT` and `RETRY_BACKOFF_BASE` must be positive.
-- `/healthz` returns 503 when no SQS receive has succeeded for two minutes, so a consumer that cannot receive (denied permission, wrong queue or region) stops being ready and is restarted.
+- `/healthz` returns 503 until the first SQS receive has succeeded and again when none has succeeded for two minutes, so a consumer that cannot receive (denied permission, wrong queue or region) stops being ready and is restarted.
 - A consumer that returns without being stopped, and a health server that cannot bind, stop the process like a failed consumer does.
-- Alerts for a failing SQS receive and for a queue backlog.
+- Alerts for a failing SQS receive and for a queue backlog; the dead-letter page groups by event type and reason, the labels that series carries.
 - Outside `dev` and `local` every target address must be `https://`, and the forwarding client does not follow redirects, so the internal token is never sent in cleartext or to another host.
-- The Dockerfile removes the private-module credential in the same `RUN` that uses it, and the release workflow exports the final stage's build cache only (`mode=min`); the builder cache of earlier releases held the token, so the `GO_PRIVATE_TOKEN` secret needs rotating.
-- `RETRY_BACKOFF_BASE` defaults to `30s`, so the four retries span about 7 minutes and a rolling deploy of a target no longer dead-letters the events that arrived during it. The receive threshold is exported as one constant that a test compares with the local queues' redrive count; an alert fires when any dead-letter queue is not empty, which also covers SQS moving a message itself.
+- The Dockerfile removes the private-module credential in the same `RUN` that uses it, and the release build neither reads nor exports a registry cache; the builder cache of earlier releases held the token, so the `GO_PRIVATE_TOKEN` secret needs rotating.
+- `RETRY_BACKOFF_BASE` is `30s` in the code, the chart and the example environment (a test keeps them equal), so the four retries span about 7 minutes and a rolling deploy of a target no longer dead-letters the events that arrived during it. The receive threshold is exported as one constant that a test compares with the local queues' redrive count; an alert fires when any dead-letter queue is not empty, which also covers SQS moving a message itself.
 - The chart sets `terminationGracePeriodSeconds` to 90s (drain 30s plus the handler deadline), enables the ServiceMonitor by default, and the alerts select the job by suffix because the ServiceMonitor's job is prefixed with the release name.
 - A forward with an unknown target name fails before any target is called, so no delivered event is reported failed. A topology that routes a type to `execution` without an Execution category fails to load. The handler-duration metric labels a message `dead_lettered` or `dropped` (an empty route) instead of `ok`.
 - A malformed message body is no longer written to the logs; the log keeps its size and SHA-256 and the dead-letter queue keeps the body.

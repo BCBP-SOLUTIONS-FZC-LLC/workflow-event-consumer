@@ -1,6 +1,8 @@
 package config
 
 import (
+	"os"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -191,5 +193,56 @@ func TestLoad_RequiresAppEnvAndRegion(t *testing.T) {
 				t.Fatalf("error = %v, want one containing %q", err, tc.wantIn)
 			}
 		})
+	}
+}
+
+func TestChartAndEnvExampleMatchTheCodeDefaults(t *testing.T) {
+	requiredEnv(t)
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	want := map[string]string{
+		"VISIBILITY_TIMEOUT":   cfg.VisibilityTimeout.String(),
+		"DRAIN_TIMEOUT":        cfg.DrainTimeout.String(),
+		"FORWARD_TIMEOUT":      cfg.ForwardTimeout.String(),
+		"HANDLER_TIMEOUT":      cfg.HandlerTimeout.String(),
+		"RETRY_BACKOFF_BASE":   cfg.RetryBackoffBase.String(),
+		"RETRY_BACKOFF_MAX":    cfg.RetryBackoffMax.String(),
+		"QUEUE_DEPTH_INTERVAL": cfg.QueueDepthInterval.String(),
+	}
+	normalise := func(v string) string {
+		d, err := time.ParseDuration(strings.TrimSpace(v))
+		if err != nil {
+			return v
+		}
+		return d.String()
+	}
+
+	values, err := os.ReadFile("../../deploy/helm/values.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	example, err := os.ReadFile("../../.env.example")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for key, def := range want {
+		for name, re := range map[string]*regexp.Regexp{
+			"chart values": regexp.MustCompile(`(?m)^\s+` + key + `:\s*"?([^"\s#]+)`),
+			".env.example": regexp.MustCompile(`(?m)^` + key + `=([^\s#]+)`),
+		} {
+			src := values
+			if name == ".env.example" {
+				src = example
+			}
+			m := re.FindSubmatch(src)
+			if m == nil {
+				continue
+			}
+			if got := normalise(string(m[1])); got != def {
+				t.Errorf("%s sets %s=%s, the code default is %s", name, key, got, def)
+			}
+		}
 	}
 }

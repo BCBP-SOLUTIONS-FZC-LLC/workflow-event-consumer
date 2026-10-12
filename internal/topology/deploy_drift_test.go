@@ -146,6 +146,7 @@ func TestReleaseBuilderCacheExportsOnlyTheFinalStageLayers(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.NotContains(t, string(raw), "mode=max", "mode=max exports every builder layer to the registry")
+	assert.NotContains(t, string(raw), "cache-from", "a release build must not read a cache that anyone with package write can poison")
 }
 
 func TestChartGivesPodsTimeToDrain(t *testing.T) {
@@ -174,4 +175,5 @@ func TestAlertsSelectTheChartsJobName(t *testing.T) {
 
 	assert.NotRegexp(t, `job="`, alerts, "the ServiceMonitor's job is <release>-workflow-events-consumer, which an exact match never selects")
 	assert.Contains(t, alerts, "WorkflowEventsConsumerDeadLetterBacklog")
+	assert.NotContains(t, alerts, "by (queue) (increase(platform_dlq_messages_total", "that series carries no queue label")
 }

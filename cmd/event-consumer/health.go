@@ -25,12 +25,14 @@ type receiveWatch struct {
 
 	mu         sync.Mutex
 	last       uint64
+	seen       bool
 	lastChange time.Time
 }
 
 func newReceiveWatch(g prometheus.Gatherer, window time.Duration, now func() time.Time) *receiveWatch {
 	w := &receiveWatch{gatherer: g, window: window, now: now, lastChange: now()}
 	w.last = w.successfulReceives()
+	w.seen = w.last > 0
 	return w
 }
 
@@ -39,9 +41,10 @@ func (w *receiveWatch) healthy() bool {
 	defer w.mu.Unlock()
 	if count := w.successfulReceives(); count > w.last {
 		w.last = count
+		w.seen = true
 		w.lastChange = w.now()
 	}
-	return w.now().Sub(w.lastChange) <= w.window
+	return w.seen && w.now().Sub(w.lastChange) <= w.window
 }
 
 func (w *receiveWatch) successfulReceives() uint64 {

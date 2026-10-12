@@ -142,9 +142,9 @@ The Execution Service publishes `WorkflowInstanceStarted`, `WorkflowInstanceDegr
 3. **Acknowledgement.** A message is deleted only after every target it was routed to answers 2xx.
 4. **Permanent failures.** An answer of 400, 413 or 422 states that the request is malformed and cannot succeed later. When every failing target answers permanently, the consumer sends the original message to the queue's dead-letter queue with a reason naming the target and status, and deletes it from the source queue. If the dead-letter send fails, the message stays on the queue.
 5. **Transient failures.** Every other failure, including 401, 403, 404, 408, 429, 5xx and network errors, leaves the message on the queue for redelivery with backoff. A permanent answer alongside a transient one is retried, because the transient target still needs the message.
-6. **Receive threshold.** The consumer dead-letters a message on the fifth receive, one below the queues' redrive count, so the dead-letter reason is the consumer's own. The default backoff base of 30 seconds spreads the retries over about seven minutes, which covers a rolling deploy of a target. Each queue's redrive count stays above the threshold, and an alert fires when any dead-letter queue is not empty, which also covers SQS moving a message itself.
+6. **Receive threshold.** The consumer dead-letters a message on the fifth receive, one below the queues' redrive count, so the dead-letter reason is the consumer's own. The default backoff base of 30 seconds, set in the chart and the example environment as well, spreads the retries over about seven minutes, which covers a rolling deploy of a target. Each queue's redrive count stays above the threshold, and an alert fires when any dead-letter queue is not empty, which also covers SQS moving a message itself.
 7. **Startup.** A queue without a redrive policy fails startup, as does an unset `APP_ENV` or `AWS_REGION`.
-8. **Receive health.** The health endpoint answers 503 when no receive has succeeded for two minutes, so a consumer that cannot receive, for a denied permission, a wrong queue or a wrong region, stops being ready and is restarted.
+8. **Receive health.** The health endpoint answers 503 until the first receive has succeeded and again when no receive has succeeded for two minutes, so a bad rollout never replaces a healthy pod and a consumer that cannot receive, for a denied permission, a wrong queue or a wrong region, stops being ready and is restarted.
 
 ---
 
@@ -182,7 +182,7 @@ Service metrics are `workflow_events_consumer_*`: forward attempts by queue, tar
 
 The service runs under a service account whose role grants, per queue, receive, delete, visibility change and attribute read, and per dead-letter queue, get-queue-URL, send and attribute read. A dead-letter queue encrypted with a customer-managed key additionally needs the key's generate-data-key and decrypt actions. The role grants no publish, storage or registry action.
 
-The chart carries the topology, a pod disruption budget, an autoscaler, a network policy and a service monitor that is on by default; the alerts select the job by suffix because the service monitor prefixes it with the release name. The termination grace period exceeds the drain timeout plus the handler deadline. Liveness and readiness use the health endpoint of §4 item 8, and the metrics endpoint serves the same port. The image build never leaves the private-module credential in a layer, and the release build exports the final stage's cache only.
+The chart carries the topology, a pod disruption budget, an autoscaler, a network policy and a service monitor that is on by default; the alerts select the job by suffix because the service monitor prefixes it with the release name. The termination grace period exceeds the drain timeout plus the handler deadline. Liveness and readiness use the health endpoint of §4 item 8, and the metrics endpoint serves the same port. The image build never leaves the private-module credential in a layer, and the release build neither reads nor exports a registry cache.
 
 ---
 

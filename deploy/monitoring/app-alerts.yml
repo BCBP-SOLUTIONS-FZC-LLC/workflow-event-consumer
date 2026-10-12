@@ -52,11 +52,11 @@ groups:
 
       - alert: WorkflowEventsConsumerDeadLettered
         expr: |
-          sum by (queue) (increase(platform_dlq_messages_total{job=~".*workflow-events-consumer", operation="consume"}[5m])) > 0
+          sum by (event_type, reason) (increase(platform_dlq_messages_total{job=~".*workflow-events-consumer", operation="consume"}[5m])) > 0
         labels:
           severity: page
         annotations:
-          summary: "workflow-events-consumer dead-lettered messages from queue {{ $labels.queue }}"
+          summary: "workflow-events-consumer dead-lettered {{ $labels.event_type }} ({{ $labels.reason }})"
           description: "A message exhausted its deliveries or was malformed and moved to the dead-letter queue. See docs/runbook.md."
 
       - alert: WorkflowEventsConsumerHTTPPanic
