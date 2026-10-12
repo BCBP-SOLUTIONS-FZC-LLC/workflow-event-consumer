@@ -85,7 +85,7 @@ One process runs one SQS consumer per queue in `config/topology.yaml`, all start
 
 Each consumer is built with a per-message handler timeout, redelivery backoff, and queue-depth metrics. The handler timeout never exceeds the visibility timeout, and the forward timeout never exceeds the handler timeout, so a hung downstream cannot keep a message invisible past its redelivery.
 
-The health server on `HEALTH_PORT` serves `/healthz` and `/metrics` behind the gincommon observability middleware, with read-header, read, write and idle timeouts. Outbound forwards carry the trace context.
+The health server on `HEALTH_PORT` serves `/healthz` and `/metrics` behind the gincommon observability middleware, with read-header, read, write and idle timeouts. Outbound forwards carry the trace context. `/healthz` answers 503 when no SQS receive has succeeded for two minutes; the library retries a failing receive forever, so this is the only signal that takes such a pod out of service.
 
 ## Observability
 

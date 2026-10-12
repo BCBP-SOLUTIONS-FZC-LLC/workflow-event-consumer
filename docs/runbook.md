@@ -63,6 +63,10 @@ The category map lives in code, not in the topology file: a category with no mat
   `bad_payload`/`decode_failed` there points at a producer-side contract
   break, not this bridge.
 
+## The pod is not ready and nothing is consumed
+
+`/healthz` answers 503 after two minutes without a successful SQS receive. Check the `WorkflowEventsConsumerReceiveFailing` alert and the pod's logs for `receive message failed`: a denied `sqs:ReceiveMessage`, a queue URL that does not exist, or an `AWS_REGION` that does not match the queues. Fix the role, the topology or the region; the pod becomes ready on its own once a receive succeeds.
+
 ## A message is stuck redelivering
 
 1. Check `workflow_events_consumer_forward_total` to identify which target is

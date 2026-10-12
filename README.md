@@ -134,7 +134,7 @@ Every series carries `domain` (`workflow`), `service` (`workflow-events-consumer
 
 - Each target has its own token, sent as `x-internal-token`; outside dev and local startup fails if any target's token is missing.
 - The IAM role can only consume SQS; it never publishes and never touches S3, KMS or Glue.
-- The health server serves `/healthz` and `/metrics` only, with read, write and idle timeouts.
+- The health server serves `/healthz` and `/metrics` only, with read, write and idle timeouts. `/healthz` answers 503 when no SQS receive has succeeded for two minutes, so a consumer that cannot receive is taken out of service and restarted.
 - Container: distroless, non-root, read-only root filesystem, all capabilities dropped.
 
 ---

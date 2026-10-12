@@ -9,7 +9,7 @@
 | Document Type | Low-Level Design (LLD) |
 | Service | Workflow Events Consumer (`workflow-events-consumer`, repository `workflow-event-consumer`) |
 | Subsystem | Workflow Engine — inbound event delivery |
-| Version | 1.0 |
+| Version | 1.1 |
 | Date | 2026-10-12 |
 | Status | Approved |
 | Audience | Workflow Engine team, IAM, platform/infra |
@@ -20,6 +20,7 @@
 | Version | Date | Notes |
 | --- | --- | --- |
 | 1.0 | 2026-10-12 | Initial LLD. Specifies the queue and event inventory across IAM and the Workflow Engine, the forwarding and failure semantics, the topology file, configuration, observability, deployment permissions and the test strategy, with the open items against IAM and the other Workflow documents in Appendix B. |
+| 1.1 | 2026-10-12 | Production-readiness review. The health endpoint fails after two minutes without a successful receive (§4 item 8); `APP_ENV` and `AWS_REGION` are required (§6); target addresses are https outside `dev` and `local` and redirects are not followed (§4 item 2); the default backoff base is 30 seconds and the retry window about seven minutes (§4 item 6, §6); the handler metric labels dead-lettered and dropped messages (§7); the chart sets the termination grace period, enables the ServiceMonitor and selects alerts by job suffix (§8); the image build leaves no credential in a layer or cache (§8); malformed message bodies stay out of the logs (§7). Appendix A decisions 10 to 14 and Appendix B are updated, and Appendix B item 4 is resolved by the corrections to the Workflow HLD §9.1, the Execution LLD rev 1.76 and the Execution AsyncAPI. |
 
 ---
 
@@ -63,7 +64,7 @@ flowchart LR
     C -.->|permanent failure| DLQ[("queue DLQ")]
 ```
 
-One consumer runs per queue declared in the topology file, each with its own concurrency, visibility timeout and per-message deadline. All consumers share one forwarder. A consumer that stops with an error stops the process, and the pod restarts.
+One consumer runs per queue declared in the topology file, each with its own concurrency, visibility timeout and per-message deadline. All consumers share one forwarder. A consumer that stops with an error, a consumer that returns without being stopped, and a health server that cannot bind stop the process, and the pod restarts.
 
 Logs, metrics and traces go through `platform-gincommon`. Every queue receive, dead-letter send and envelope goes through `platform-events`.
 
@@ -137,12 +138,13 @@ The Execution Service publishes `WorkflowInstanceStarted`, `WorkflowInstanceDegr
 ## 4. Forwarding and Failure Semantics
 
 1. **Original body.** The consumer forwards the message body exactly as received. A schema-encoded event reaches its target with the payload and `dataschema` intact, and the target decodes it. The consumer decodes nothing.
-2. **Authentication.** Each request carries the target's own internal token and the trace context.
+2. **Authentication.** Each request carries the target's own internal token and the trace context. Outside `dev` and `local` every target address is https and every token is set, and the client follows no redirect, so the token reaches only the configured host.
 3. **Acknowledgement.** A message is deleted only after every target it was routed to answers 2xx.
 4. **Permanent failures.** An answer of 400, 413 or 422 states that the request is malformed and cannot succeed later. When every failing target answers permanently, the consumer sends the original message to the queue's dead-letter queue with a reason naming the target and status, and deletes it from the source queue. If the dead-letter send fails, the message stays on the queue.
 5. **Transient failures.** Every other failure, including 401, 403, 404, 408, 429, 5xx and network errors, leaves the message on the queue for redelivery with backoff. A permanent answer alongside a transient one is retried, because the transient target still needs the message.
-6. **Receive threshold.** The consumer dead-letters a message on the fifth receive, one below the queues' redrive count, so the dead-letter reason is the consumer's own.
-7. **Startup.** A queue without a redrive policy fails startup.
+6. **Receive threshold.** The consumer dead-letters a message on the fifth receive, one below the queues' redrive count, so the dead-letter reason is the consumer's own. The default backoff base of 30 seconds spreads the retries over about seven minutes, which covers a rolling deploy of a target. Each queue's redrive count stays above the threshold, and an alert fires when any dead-letter queue is not empty, which also covers SQS moving a message itself.
+7. **Startup.** A queue without a redrive policy fails startup, as does an unset `APP_ENV` or `AWS_REGION`.
+8. **Receive health.** The health endpoint answers 503 when no receive has succeeded for two minutes, so a consumer that cannot receive, for a denied permission, a wrong queue or a wrong region, stops being ready and is restarted.
 
 ---
 
@@ -156,13 +158,13 @@ One file declares the targets, the queues and the routes: a route maps an event 
 
 | Variable | Purpose |
 | --- | --- |
-| `APP_ENV` | `local`, `dev`, `test`, `staging` or `prod`; outside `dev` and `local` every target's token variable must be set |
+| `APP_ENV` | Required: `local`, `dev`, `test`, `staging` or `prod`; outside `dev` and `local` every target's token variable must be set |
 | `TOPOLOGY_CONFIG_PATH` | Path to the topology file |
-| `AWS_REGION`, `AWS_ENDPOINT_URL` | Region and emulator override |
+| `AWS_REGION`, `AWS_ENDPOINT_URL` | Region (required) and emulator override |
 | `CONSUMER_CONCURRENCY` | Concurrent handlers per queue |
 | `VISIBILITY_TIMEOUT`, `DRAIN_TIMEOUT` | Visibility timeout and shutdown grace per consumer |
 | `FORWARD_TIMEOUT`, `HANDLER_TIMEOUT` | Per-target request timeout and per-message deadline; the forward timeout does not exceed the handler timeout, which does not exceed the visibility timeout |
-| `RETRY_BACKOFF_BASE`, `RETRY_BACKOFF_MAX` | Redelivery backoff |
+| `RETRY_BACKOFF_BASE`, `RETRY_BACKOFF_MAX` | Redelivery backoff, defaults 30 seconds and 5 minutes |
 | `QUEUE_DEPTH_INTERVAL` | Cadence of the queue-depth metric |
 | `HEALTH_PORT` | Health and metrics port |
 
@@ -172,7 +174,7 @@ A malformed number or duration fails startup.
 
 ## 7. Observability
 
-Service metrics are `workflow_events_consumer_*`: forward attempts by queue, target and result (`ok`, `error`, `skipped`), forward duration and handler duration. The consume, dead-letter and queue-depth series are `platform_*` from `platform-events`, and a dead-letter the consumer sends is counted there once. `tenant_id` is never a label. Alerts cover failing messages, dead-lettered messages and handler panics. The metric registry is generated from a real scrape and checked in CI.
+Service metrics are `workflow_events_consumer_*`: forward attempts by queue, target and result (`ok`, `error`, `skipped`), forward duration, and handler duration by result (`ok`, `error`, `dead_lettered`, `dropped`). The consume, dead-letter and queue-depth series are `platform_*` from `platform-events`, and a dead-letter the consumer sends is counted there once. `tenant_id` is never a label. Message bodies are never logged; a malformed body is recorded by size and SHA-256 and kept in the dead-letter queue. Alerts cover failing messages, dead-lettered messages, a non-empty dead-letter queue, a failing receive, a queue backlog and handler panics. The metric registry is generated from a real scrape and checked in CI.
 
 ---
 
@@ -180,13 +182,13 @@ Service metrics are `workflow_events_consumer_*`: forward attempts by queue, tar
 
 The service runs under a service account whose role grants, per queue, receive, delete, visibility change and attribute read, and per dead-letter queue, get-queue-URL, send and attribute read. A dead-letter queue encrypted with a customer-managed key additionally needs the key's generate-data-key and decrypt actions. The role grants no publish, storage or registry action.
 
-The chart carries the topology, a pod disruption budget, an autoscaler, a network policy and a service monitor. Health probes use a static endpoint; the metrics endpoint serves the same port.
+The chart carries the topology, a pod disruption budget, an autoscaler, a network policy and a service monitor that is on by default; the alerts select the job by suffix because the service monitor prefixes it with the release name. The termination grace period exceeds the drain timeout plus the handler deadline. Liveness and readiness use the health endpoint of §4 item 8, and the metrics endpoint serves the same port. The image build never leaves the private-module credential in a layer, and the release build exports the final stage's cache only.
 
 ---
 
 ## 9. Testing Strategy
 
-Unit tests cover routing, failure classification, the handler's dead-letter decision and configuration validation. Integration tests run against an SQS and SNS emulator and cover routing, redelivery on transient failure, dead-lettering after one delivery on a permanent failure, and a schema-encoded event forwarded unchanged. Drift tests tie the chart, the IAM policy, the AsyncAPI contract and the runbook's tables to the topology example. An import-direction check enforces the package layering. The coverage gate is 90 percent.
+Unit tests cover routing, failure classification, the handler's dead-letter decision and configuration validation. Integration tests run against an SQS and SNS emulator and cover routing, redelivery on transient failure, dead-lettering after one delivery on a permanent failure, and a schema-encoded event forwarded unchanged. Drift tests tie the chart, the IAM policy, the AsyncAPI contract and the runbook's tables to the topology example. Integration tests also confirm that a malformed body never reaches the logs. Chart tests cover the termination grace period, the service monitor and the alert selectors. An import-direction check enforces the package layering. The coverage gate is 90 percent.
 
 ---
 
@@ -203,6 +205,11 @@ Unit tests cover routing, failure classification, the handler's dead-letter deci
 | 7 | The receive threshold is one below the queues' redrive count | The consumer's dead-letter carries the reason; SQS redrive is the backstop |
 | 8 | The Execution Service receives only categorised types | It registers one route per category and has no base route |
 | 9 | Each target deduplicates for itself | The consumer keeps no state |
+| 10 | Readiness depends on successful receives | The library retries a failing receive forever, so only the health endpoint can take a pod that consumes nothing out of service |
+| 11 | `APP_ENV` and `AWS_REGION` have no default | A default environment of `dev` accepted empty tokens in production, and a default region signed requests for the wrong queues |
+| 12 | Target addresses are https outside `dev` and `local`, and redirects are not followed | The internal token must not travel in cleartext or to another host |
+| 13 | The retry window covers a rolling deploy of a target | A shorter window dead-letters every event that arrives while a target restarts |
+| 14 | The build credential lives only inside the `RUN` that uses it | A credential in a layer or in an exported cache is readable by anyone who can pull the image or the cache |
 
 ---
 
@@ -213,7 +220,9 @@ Unit tests cover routing, failure classification, the handler's dead-letter deci
 | 1 | `MembershipRevoked` and `TenantMembershipsPurged` are outside `membership-workflow-q`'s subscription filter in IAM Organisation and Membership's AsyncAPI. The Definition and Execution services act on both, so the queue's filter needs both types. | IAM Organisation and Membership |
 | 2 | `delegation-workflow-q` and its subscription to `iam.delegation.events`, filtered to the delegation types, are to be provisioned. The Execution Service LLD §6.2 places `DelegationStarted` and `DelegationEnded` on `iam.membership.events`; the producer publishes them to `iam.delegation.events`. | Workflow infrastructure, IAM Delegation |
 | 3 | The dead-letter queue name `wf-workflow-dash-q-dlq` follows the `<queue>-dlq` convention and is unconfirmed. The dashboard queue's filter policy is infrastructure provisioning (Stream Gateway LLD Appendix B). | Workflow infrastructure |
-| 4 | The Workflow HLD §9.1 and the Execution Service LLD §6.2 state that no subscription filter policy exists. IAM's AsyncAPI files define one per queue. The Execution Service AsyncAPI lists `MembershipRevoked` under the user topic; the producer publishes it on the membership topic. | Workflow documents |
-| 5 | The network policy permits egress on port 443 only while the example target addresses are plain HTTP. Readiness ignores receive failures that the library only logs. A downstream outage longer than about two minutes dead-letters the messages that arrived during it. | Workflow infrastructure |
+| 4 | ~~The Workflow HLD §9.1 and the Execution Service LLD §6.2 state that no subscription filter policy exists, and the Execution Service AsyncAPI lists `MembershipRevoked` under the user topic.~~ RESOLVED (rev 1.1 — the HLD §9.1, the Execution LLD rev 1.76 and the Execution AsyncAPI follow IAM's per-queue filters, the delegation topic and the membership topic). | Workflow documents |
+| 5 | Pod autoscaling is CPU and memory based and off by default; scaling on queue depth is an infrastructure option. No admission policy enforces the Cosign signature and the chart deploys by tag. | Workflow infrastructure |
 | 6 | The Tender Service and the LLM subsystem join the consumer in later revisions, with the Tender and notification topics named in the Stream Gateway LLD §1. | Tender, LLM |
 | 7 | The `platform-events` maintainers are asked to confirm the handler-side dead-letter pattern and its metric and permission semantics. | platform-events |
+| 8 | GitHub Actions are pinned by tag in every Workflow service; pinning by commit SHA is one change across the services. | Workflow engineering |
+| 9 | The category paths of §3.3 are tested against the Execution Service's router in its own repository; this repository has no cross-repository contract test. | Workflow engineering |
