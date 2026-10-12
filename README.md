@@ -79,7 +79,7 @@ role in real environments); against LocalStack, set
 `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY` to any static value — the
 consumer has no static-credentials injection point of its own.
 
-A malformed number or duration fails startup rather than falling back to a default.
+A malformed number or duration fails startup rather than falling back to a default. A queue without a redrive policy to a dead-letter queue fails startup.
 
 ## Local development
 
@@ -128,7 +128,7 @@ One image from the `Dockerfile` (target `event-consumer`), base images pinned by
 
 ## Observability
 
-Every series carries `domain` (`workflow`), `service` (`workflow-events-consumer`) and `environment`. Service metrics are `workflow_events_consumer_*`; the consumer, dead-letter and queue-depth series are `platform_*` from `platform-events`. [docs/observability/metric-registry.md](docs/observability/metric-registry.md) is generated from a real scrape, and `make metrics-lint` fails on a collector built outside `internal/observability`, a name the standard rejects, an alert naming a metric that does not exist, or a stale inventory. Forwarded requests carry the trace context.
+Every series carries `domain` (`workflow`), `service` (`workflow-events-consumer`) and `environment`. Service metrics are `workflow_events_consumer_*`; the consumer, dead-letter (including the dead-letters this service sends) and queue-depth series are `platform_*` from `platform-events`. [docs/observability/metric-registry.md](docs/observability/metric-registry.md) is generated from a real scrape, and `make metrics-lint` fails on a collector built outside `internal/observability`, a name the standard rejects, an alert naming a metric that does not exist, or a stale inventory. Forwarded requests carry the trace context.
 
 ## Security
 

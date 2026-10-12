@@ -128,8 +128,12 @@ Compose, and Kubernetes.
 A message is only deleted from its queue once **every target it was routed
 to** returns `2xx`. If any of them fails, the message stays visible and SQS
 redelivers it — after the queue's configured `maxReceiveCount`, it lands in
-that queue's dead-letter queue. There is no retry or circuit-breaker logic
-beyond what SQS itself provides.
+that queue's dead-letter queue. A failure that no later attempt can fix, a
+`4xx` other than `408` and `429` from every failing target, sends the original
+message to the dead-letter queue immediately, with a reason naming the target
+and status. There is no retry or circuit-breaker logic beyond what SQS itself
+provides. The consumer's own receive threshold is 4, below the queues'
+redrive count of 5.
 
 > Source: [`docs/architecture/mermaid/sequence-ack.mmd`](docs/architecture/mermaid/sequence-ack.mmd)
 
@@ -204,7 +208,7 @@ sequenceDiagram
     H-->>C: nil
     C->>SQS: DeleteMessage (ack)
 
-    Note over SQS: after maxReceiveCount (5) consecutive failures,<br/>SQS's native redrive policy moves the message to that queue's DLQ
+    Note over SQS: after the receive threshold (4) of consecutive transient failures,<br/>SQS's native redrive policy moves the message to that queue's DLQ
 ```
 
 ---

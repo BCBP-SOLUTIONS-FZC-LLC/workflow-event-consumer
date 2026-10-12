@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	eventsmock "github.com/BCBP-SOLUTIONS-FZC-LLC/platform-events/v2/pkg/events/mock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -21,6 +22,7 @@ func TestBuild_AcceptsTheProductionOptions(t *testing.T) {
 	t.Setenv("AWS_ACCESS_KEY_ID", "test")
 	t.Setenv("AWS_SECRET_ACCESS_KEY", "test")
 	opts := Options{
+		DeadLetters:        &eventsmock.DLQPublisher{},
 		Region:             "us-east-1",
 		EndpointURL:        "http://localhost:4566",
 		Concurrency:        4,
@@ -36,4 +38,11 @@ func TestBuild_AcceptsTheProductionOptions(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.NotNil(t, c)
+}
+
+func TestBuild_RequiresADeadLetterPublisher(t *testing.T) {
+	_, err := Build(QueueSpec{Name: "membership", URL: "http://localhost:4566/000000000000/membership-workflow-q"}, Options{}, forwarder.New(), NewRouter(nil, nil))
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "dead-letter publisher")
 }

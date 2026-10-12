@@ -30,7 +30,7 @@ func TestChartTopologyMatchesTheExample(t *testing.T) {
 	assert.Equal(t, example.Routes, values.Topology.Routes, "chart routes")
 }
 
-func TestIAMPolicyCoversEveryQueue(t *testing.T) {
+func TestIAMPolicyCoversEveryQueueAndItsDeadLetterQueue(t *testing.T) {
 	example, err := Load("../../config/topology.example.yaml")
 	require.NoError(t, err)
 
@@ -38,24 +38,35 @@ func TestIAMPolicyCoversEveryQueue(t *testing.T) {
 	require.NoError(t, err)
 	var policy struct {
 		Statement []struct {
+			Sid      string   `json:"Sid"`
+			Action   []string `json:"Action"`
 			Resource []string `json:"Resource"`
 		} `json:"Statement"`
 	}
 	require.NoError(t, json.Unmarshal(raw, &policy))
-	var granted []string
+
+	resources := map[string][]string{}
+	actions := map[string][]string{}
 	for _, st := range policy.Statement {
 		for _, arn := range st.Resource {
-			granted = append(granted, arn[len("arn:aws:sqs:*:*:"):])
+			resources[st.Sid] = append(resources[st.Sid], arn[len("arn:aws:sqs:*:*:"):])
 		}
+		actions[st.Sid] = st.Action
 	}
-	sort.Strings(granted)
 
-	var wanted []string
+	var queues, deadLetters []string
 	for _, q := range example.Queues {
-		wanted = append(wanted, path.Base(q.URL))
+		queues = append(queues, path.Base(q.URL))
+		deadLetters = append(deadLetters, path.Base(q.URL)+"-dlq")
 	}
-	sort.Strings(wanted)
-	assert.Equal(t, wanted, granted, "deploy/aws/policy.json must list exactly the queues of the topology")
+	sort.Strings(queues)
+	sort.Strings(deadLetters)
+	sort.Strings(resources["WorkflowEventsConsumerSQSConsume"])
+	sort.Strings(resources["WorkflowEventsConsumerSQSDeadLetter"])
+
+	assert.Equal(t, queues, resources["WorkflowEventsConsumerSQSConsume"], "the consume statement lists exactly the queues of the topology")
+	assert.Equal(t, deadLetters, resources["WorkflowEventsConsumerSQSDeadLetter"], "the dead-letter statement lists exactly the dead-letter queues of the topology")
+	assert.ElementsMatch(t, []string{"sqs:GetQueueUrl", "sqs:SendMessage", "sqs:GetQueueAttributes"}, actions["WorkflowEventsConsumerSQSDeadLetter"])
 }
 
 func queueNames(c Config) []string {

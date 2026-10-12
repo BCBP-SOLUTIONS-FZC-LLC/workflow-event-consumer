@@ -15,6 +15,20 @@
         "arn:aws:sqs:*:*:user-wf-q",
         "arn:aws:sqs:*:*:wf-workflow-dash-q"
       ]
+    },
+    {
+      "Sid": "WorkflowEventsConsumerSQSDeadLetter",
+      "Effect": "Allow",
+      "Action": [
+        "sqs:GetQueueUrl",
+        "sqs:SendMessage",
+        "sqs:GetQueueAttributes"
+      ],
+      "Resource": [
+        "arn:aws:sqs:*:*:membership-workflow-q-dlq",
+        "arn:aws:sqs:*:*:user-wf-q-dlq",
+        "arn:aws:sqs:*:*:wf-workflow-dash-q-dlq"
+      ]
     }
   ]
 }

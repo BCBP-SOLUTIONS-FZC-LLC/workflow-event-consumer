@@ -40,9 +40,12 @@ var testRoutes = map[string][]string{
 func buildConsumer(t *testing.T, ls *fixtures.LocalStackSNSSQS, queueName, queueURL string, fwd *forwarder.Forwarder, visibilityTimeout time.Duration) events.Consumer {
 	t.Helper()
 	router := consumer.NewRouter(testRoutes, []string{"execution", "definition"})
+	deadLetters, err := events.NewSQSDLQPublisher(events.DLQConfig{Region: "us-east-1", EndpointURL: ls.EndpointURL, ConsumerName: "test"})
+	require.NoError(t, err)
 	c, err := consumer.Build(
 		consumer.QueueSpec{Name: queueName, URL: queueURL},
 		consumer.Options{
+			DeadLetters:       deadLetters,
 			Region:            "us-east-1",
 			EndpointURL:       ls.EndpointURL,
 			Concurrency:       2,
@@ -209,4 +212,59 @@ func TestLocalStackFlow_OneTargetFailsBlocksAck(t *testing.T) {
 	require.Eventually(t, func() bool {
 		return len(ls.DrainQueue(ctx, t, userQueue.QueueURL)) == 0
 	}, 15*time.Second, 200*time.Millisecond, "message should clear once execution succeeds")
+}
+
+func TestLocalStackFlow_PermanentFailureReachesTheDLQAfterOneDelivery(t *testing.T) {
+	obstest.Setup()
+	setLocalStackCredentials(t)
+	ctx := context.Background()
+	ls := fixtures.NewLocalStackSNSSQS(ctx, t)
+
+	exec := mocks.NewDownstream()
+	defer exec.Close()
+	exec.SetStatus(http.StatusBadRequest)
+
+	fwd := forwarder.New(forwarder.NewTarget("execution", exec.URL(), "", "exec-token", 5*time.Second))
+
+	userQueue := ls.Queues["iam-user-events"]
+	startConsumer(t, buildConsumer(t, ls, "user", userQueue.QueueURL, fwd, 2*time.Second))
+
+	env := events.NewEnvelope("UserDeleted", "iam", json.RawMessage(`{"user_id":"u-3"}`))
+	body, err := json.Marshal(env)
+	require.NoError(t, err)
+	ls.Publish(ctx, t, "iam-user-events", body)
+
+	var dead []string
+	require.Eventually(t, func() bool {
+		dead = append(dead, ls.DrainQueue(ctx, t, userQueue.DLQURL)...)
+		return len(dead) == 1
+	}, 15*time.Second, 200*time.Millisecond, "the message should be on the DLQ")
+
+	assert.JSONEq(t, string(body), dead[0], "the original message is forwarded")
+	assert.Equal(t, 1, exec.Count(), "a permanent failure is delivered once, not retried")
+	assert.Equal(t, 0, len(ls.DrainQueue(ctx, t, userQueue.QueueURL)), "the source message is deleted")
+}
+
+func TestLocalStackFlow_TransientFailureIsNotDeadLettered(t *testing.T) {
+	obstest.Setup()
+	setLocalStackCredentials(t)
+	ctx := context.Background()
+	ls := fixtures.NewLocalStackSNSSQS(ctx, t)
+
+	exec := mocks.NewDownstream()
+	defer exec.Close()
+	exec.SetStatus(http.StatusServiceUnavailable)
+
+	fwd := forwarder.New(forwarder.NewTarget("execution", exec.URL(), "", "exec-token", 5*time.Second))
+
+	userQueue := ls.Queues["iam-user-events"]
+	startConsumer(t, buildConsumer(t, ls, "user", userQueue.QueueURL, fwd, 2*time.Second))
+
+	env := events.NewEnvelope("UserDeleted", "iam", json.RawMessage(`{"user_id":"u-4"}`))
+	body, err := json.Marshal(env)
+	require.NoError(t, err)
+	ls.Publish(ctx, t, "iam-user-events", body)
+
+	require.Eventually(t, func() bool { return exec.Count() >= 2 }, 20*time.Second, 200*time.Millisecond, "a 503 is redelivered")
+	assert.Empty(t, ls.DrainQueue(ctx, t, userQueue.DLQURL), "a transient failure stays on the source queue")
 }

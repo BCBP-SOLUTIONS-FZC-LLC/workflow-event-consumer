@@ -68,10 +68,7 @@ The category map lives in code, not in the topology file: a category with no mat
 2. Check that target's own health/logs — a `5xx` there is expected to cause
    redelivery; that's by design (see [ARCHITECTURE.md](../ARCHITECTURE.md)'s
    ack-semantics section).
-3. If the target is healthy but consistently returns `4xx` for one message,
-   that message will exhaust `maxReceiveCount` (5) and land in that queue's
-   dead-letter queue — this bridge has no way to short-circuit a `4xx`
-   into an immediate DLQ move, only SQS's own redrive policy does that.
+3. A `4xx` other than `408` and `429` is a permanent failure: the request cannot succeed on any later attempt. When every failing target answered that way, the bridge sends the original message to the queue's dead-letter queue at once, with a reason naming the target and status, and deletes it from the source queue. Look for it in the dead-letter queue and in `platform_dlq_messages_total`. A `5xx`, `408`, `429` or a network error is transient: the message stays on the queue and is redelivered with backoff until `maxReceiveCount` is exhausted. When one target fails permanently and another transiently, the message is redelivered, because the transient target still needs it; the permanent target receives it again, which its own idempotency absorbs.
 
 ## Replaying a dead-lettered message
 

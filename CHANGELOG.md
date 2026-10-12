@@ -17,6 +17,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Alerts for failing messages, dead-lettered messages and handler panics.
 - Tests that fail when the chart's topology or `deploy/aws/policy.json` differs from `config/topology.example.yaml`.
 - `make arch-lint` with a `.go-arch-lint.yml` that fixes the import direction between `internal` packages, run by `make check` and the quality workflow.
+- A permanent forward failure (a `4xx` other than `408` and `429` from every failing target) sends the original message to the queue's dead-letter queue after one delivery, through the `platform-events` DLQ publisher; transient and mixed failures keep the retry path. The IAM policy gains send and attribute-read on each `<queue>-dlq`, and a test ties it to the topology.
 - Tests that fail when the runbook's route table or category table differs from the topology example or the category map.
 - A release workflow (changelog gate, image build, Cosign signature, GitHub Release), a changelog check, `.editorconfig`, `helm-lint`, `lint-workflows`, a Dockerfile digest pin check, VERSIONING.
 - Initial implementation: stateless SNS → SQS → HTTP bridge subscribing to

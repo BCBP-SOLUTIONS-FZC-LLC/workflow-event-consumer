@@ -229,3 +229,57 @@ func TestForward_PropagatesTraceContext(t *testing.T) {
 
 	assert.NotEmpty(t, traceparent, "the forwarded request carries the trace context")
 }
+
+func TestForward_FailureClassification(t *testing.T) {
+	tests := []struct {
+		status    int
+		permanent bool
+	}{
+		{http.StatusBadRequest, true},
+		{http.StatusUnauthorized, true},
+		{http.StatusNotFound, true},
+		{http.StatusUnprocessableEntity, true},
+		{http.StatusRequestTimeout, false},
+		{http.StatusTooManyRequests, false},
+		{http.StatusInternalServerError, false},
+		{http.StatusBadGateway, false},
+		{http.StatusServiceUnavailable, false},
+		{http.StatusMovedPermanently, false},
+	}
+	for _, tc := range tests {
+		d := mocks.NewDownstream()
+		d.SetStatus(tc.status)
+		fwd := New(NewTarget("a", d.URL(), "", "t", time.Second))
+
+		err := fwd.Forward(context.Background(), "q", []string{"a"}, "Evt", []byte(`{"id":"1"}`))
+
+		require.Error(t, err, "status %d", tc.status)
+		assert.Equal(t, tc.permanent, Permanent(err), "status %d", tc.status)
+		d.Close()
+	}
+}
+
+func TestForward_PermanentOnlyWhenEveryFailureIsPermanent(t *testing.T) {
+	bad := mocks.NewDownstream()
+	bad.SetStatus(http.StatusBadRequest)
+	defer bad.Close()
+	down := mocks.NewDownstream()
+	down.SetStatus(http.StatusServiceUnavailable)
+	defer down.Close()
+	ok := mocks.NewDownstream()
+	defer ok.Close()
+
+	fwd := New(
+		NewTarget("bad", bad.URL(), "", "t", time.Second),
+		NewTarget("down", down.URL(), "", "t", time.Second),
+		NewTarget("ok", ok.URL(), "", "t", time.Second),
+	)
+
+	both := fwd.Forward(context.Background(), "q", []string{"bad", "down"}, "Evt", []byte(`{}`))
+	assert.False(t, Permanent(both), "a transient failure keeps the message retryable")
+
+	permanentAndOK := fwd.Forward(context.Background(), "q", []string{"bad", "ok"}, "Evt", []byte(`{}`))
+	assert.True(t, Permanent(permanentAndOK))
+
+	assert.False(t, Permanent(nil))
+}

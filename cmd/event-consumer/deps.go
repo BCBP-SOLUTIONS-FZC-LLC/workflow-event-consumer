@@ -9,6 +9,7 @@ import (
 	"github.com/BCBP-SOLUTIONS-FZC-LLC/workflow-events-consumer/internal/config"
 	"github.com/BCBP-SOLUTIONS-FZC-LLC/workflow-events-consumer/internal/consumer"
 	"github.com/BCBP-SOLUTIONS-FZC-LLC/workflow-events-consumer/internal/forwarder"
+	"github.com/BCBP-SOLUTIONS-FZC-LLC/workflow-events-consumer/internal/observability"
 	"github.com/BCBP-SOLUTIONS-FZC-LLC/workflow-events-consumer/internal/topology"
 )
 
@@ -29,7 +30,18 @@ func buildDeps(cfg *config.Config, logger consumer.Logger) (*deps, error) {
 	fwd := forwarder.New(targets...)
 	router := consumer.NewRouter(topo.Routes, topo.TargetNames())
 
+	deadLetters, err := events.NewSQSDLQPublisher(events.DLQConfig{
+		Region:       cfg.AWSRegion,
+		EndpointURL:  cfg.AWSEndpointURL,
+		ConsumerName: observability.ServiceName,
+		Logger:       logger,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("new dead-letter publisher: %w", err)
+	}
+
 	opts := consumer.Options{
+		DeadLetters:        deadLetters,
 		Region:             cfg.AWSRegion,
 		EndpointURL:        cfg.AWSEndpointURL,
 		Concurrency:        cfg.ConsumerConcurrency,

@@ -21,7 +21,10 @@ type QueueSpec struct {
 	URL  string
 }
 
+const maxReceiveCount = 4
+
 type Options struct {
+	DeadLetters        events.DLQPublisher
 	Region             string
 	EndpointURL        string
 	Concurrency        int
@@ -35,6 +38,9 @@ type Options struct {
 }
 
 func Build(spec QueueSpec, opts Options, fwd *forwarder.Forwarder, router Router) (events.Consumer, error) {
+	if opts.DeadLetters == nil {
+		return nil, fmt.Errorf("new sqs consumer for queue %s: dead-letter publisher is required", spec.Name)
+	}
 	c, err := events.NewSQSConsumer(
 		events.SQSConfig{
 			QueueURL:    spec.URL,
@@ -42,7 +48,7 @@ func Build(spec QueueSpec, opts Options, fwd *forwarder.Forwarder, router Router
 			EndpointURL: opts.EndpointURL,
 			Logger:      opts.Logger,
 		},
-		MakeHandler(spec.Name, fwd, router),
+		MakeHandler(spec.Name, fwd, router, opts.DeadLetters),
 		events.WithConcurrency(opts.Concurrency),
 		events.WithVisibilityTimeout(opts.VisibilityTimeout),
 		events.WithDrainTimeout(opts.DrainTimeout),
@@ -50,6 +56,8 @@ func Build(spec QueueSpec, opts Options, fwd *forwarder.Forwarder, router Router
 		events.WithRetryBackoff(opts.RetryBackoffBase, opts.RetryBackoffMax),
 		events.WithQueueDepthMetrics(opts.QueueDepthInterval),
 		events.WithMalformedBodyLogging(),
+		events.WithDLQForwarding(opts.DeadLetters),
+		events.WithMaxReceiveCount(maxReceiveCount),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("new sqs consumer for queue %s: %w", spec.Name, err)

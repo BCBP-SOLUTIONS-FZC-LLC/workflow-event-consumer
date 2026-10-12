@@ -3,6 +3,7 @@ package forwarder
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -12,6 +13,36 @@ import (
 )
 
 const defaultPathPrefix = "/api/v1/internal/events"
+
+type StatusError struct {
+	Target string
+	Status int
+}
+
+func (e *StatusError) Error() string {
+	return fmt.Sprintf("%s: status %d", e.Target, e.Status)
+}
+
+func (e *StatusError) permanent() bool {
+	return e.Status >= 400 && e.Status < 500 &&
+		e.Status != http.StatusRequestTimeout && e.Status != http.StatusTooManyRequests
+}
+
+func Permanent(err error) bool {
+	if err == nil {
+		return false
+	}
+	if joined, ok := err.(interface{ Unwrap() []error }); ok {
+		for _, e := range joined.Unwrap() {
+			if !Permanent(e) {
+				return false
+			}
+		}
+		return true
+	}
+	var se *StatusError
+	return errors.As(err, &se) && se.permanent()
+}
 
 type Target struct {
 	Name       string
@@ -57,7 +88,7 @@ func (t *Target) forward(ctx context.Context, eventType string, body []byte) err
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode >= 300 {
-		return fmt.Errorf("%s: status %d", t.Name, resp.StatusCode)
+		return &StatusError{Target: t.Name, Status: resp.StatusCode}
 	}
 	return nil
 }

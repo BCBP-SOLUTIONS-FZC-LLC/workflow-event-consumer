@@ -1,8 +1,6 @@
 # IRSA wiring for workflow-events-consumer
 
-This service only ever reads from SQS — it never publishes to SNS and never
-touches S3/KMS/Glue. `policy.json`'s resource list must be kept in sync with
-`config/topology.yaml`'s `queues` list: add a queue there, add its ARN here. A test fails when `policy.json` and the topology example list different queues. The queue-depth metrics also call `sqs:GetQueueAttributes` on each queue's dead-letter queue, so the role needs that permission on those queues too.
+The service consumes SQS and sends to dead-letter queues; it never publishes to SNS and never touches S3, Glue or KMS. `policy.json` has two statements: consume and read attributes on each queue of `config/topology.yaml`, and send plus read attributes on each queue's dead-letter queue, named `<queue>-dlq`. Adding a queue to the topology adds both ARNs here, and a test fails when the policy and the topology example differ. A dead-letter queue encrypted with a customer-managed KMS key additionally needs `kms:GenerateDataKey` and `kms:Decrypt` on that key.
 
 ## Setup
 
@@ -25,7 +23,7 @@ touches S3/KMS/Glue. `policy.json`'s resource list must be kept in sync with
 
 3. Verify: `kubectl exec` into a running pod and confirm
    `aws sts get-caller-identity` resolves to the expected role — the pod
-   should never be able to call `sns:Publish` or any S3/KMS/Glue action.
+   should never be able to call `sns:Publish` or any S3/Glue action.
 
 ## Rollback
 
