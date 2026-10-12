@@ -20,15 +20,15 @@ version: 1
 # instead of forcing a Go code change.
 targets:
   - name: execution
-    addr: http://execution-service.internal
+    addr: https://execution-service.internal
     tokenEnv: EXECUTION_SERVICE_TOKEN
     pathPrefix: /api/v1/internal/events
   - name: definition
-    addr: http://definition-service.internal
+    addr: https://definition-service.internal
     tokenEnv: DEFINITION_SERVICE_TOKEN
     pathPrefix: /api/v1/internal/events
   - name: workflow-stream-gateway
-    addr: http://workflow-stream-gateway.internal
+    addr: https://workflow-stream-gateway.internal
     tokenEnv: WORKFLOW_STREAM_GATEWAY_TOKEN
     pathPrefix: /api/v1/internal/events
 

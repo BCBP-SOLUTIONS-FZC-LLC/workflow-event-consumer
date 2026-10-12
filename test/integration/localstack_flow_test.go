@@ -5,7 +5,10 @@ package integration
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -293,4 +296,55 @@ func TestLocalStackFlow_SchemaEncodedEventIsForwardedUnchanged(t *testing.T) {
 	got := exec.Received()[0]
 	assert.Equal(t, "schema-1", got.SchemaID)
 	assert.JSONEq(t, `"AAEC"`, string(got.Payload))
+}
+
+type capturingLogger struct {
+	mu    sync.Mutex
+	lines []string
+}
+
+func (l *capturingLogger) record(msg string, fields map[string]interface{}) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.lines = append(l.lines, fmt.Sprint(msg, fields))
+}
+func (l *capturingLogger) Debug(msg string, f map[string]interface{}) { l.record(msg, f) }
+func (l *capturingLogger) Info(msg string, f map[string]interface{})  { l.record(msg, f) }
+func (l *capturingLogger) Warn(msg string, f map[string]interface{})  { l.record(msg, f) }
+func (l *capturingLogger) Error(msg string, f map[string]interface{}) { l.record(msg, f) }
+
+func (l *capturingLogger) text() string {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return strings.Join(l.lines, "\n")
+}
+
+func TestLocalStackFlow_MalformedBodyIsDeadLetteredAndNeverLogged(t *testing.T) {
+	obstest.Setup()
+	setLocalStackCredentials(t)
+	ctx := context.Background()
+	ls := fixtures.NewLocalStackSNSSQS(ctx, t)
+
+	deadLetters, err := events.NewSQSDLQPublisher(events.DLQConfig{Region: "us-east-1", EndpointURL: ls.EndpointURL, ConsumerName: "test"})
+	require.NoError(t, err)
+	logs := &capturingLogger{}
+	userQueue := ls.Queues["iam-user-events"]
+	c, err := consumer.Build(
+		consumer.QueueSpec{Name: "user", URL: userQueue.QueueURL},
+		consumer.Options{DeadLetters: deadLetters, Region: "us-east-1", EndpointURL: ls.EndpointURL, Concurrency: 1, VisibilityTimeout: 5 * time.Second, DrainTimeout: 5 * time.Second, Logger: logs},
+		forwarder.New(),
+		consumer.NewRouter(testRoutes, nil),
+	)
+	require.NoError(t, err)
+	startConsumer(t, c)
+
+	ls.Publish(ctx, t, "iam-user-events", []byte("not-json tenant-secret-4711"))
+
+	var dead []string
+	require.Eventually(t, func() bool {
+		dead = append(dead, ls.DrainQueue(ctx, t, userQueue.DLQURL)...)
+		return len(dead) == 1
+	}, 15*time.Second, 200*time.Millisecond, "the malformed message should reach the DLQ")
+
+	assert.NotContains(t, logs.text(), "tenant-secret-4711", "message bodies carry tenant data and stay out of the logs")
 }

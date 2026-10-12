@@ -11,8 +11,8 @@ import (
 func testConfig() Config {
 	return Config{
 		Targets: []Target{
-			{Name: "execution", Addr: "http://execution.internal", TokenEnv: "EXECUTION_SERVICE_TOKEN"},
-			{Name: "definition", Addr: "http://definition.internal", TokenEnv: "DEFINITION_SERVICE_TOKEN"},
+			{Name: "execution", Addr: "https://execution.internal", TokenEnv: "EXECUTION_SERVICE_TOKEN"},
+			{Name: "definition", Addr: "https://definition.internal", TokenEnv: "DEFINITION_SERVICE_TOKEN"},
 		},
 		Queues: []Queue{{Name: "membership", URL: "https://sqs/membership"}},
 	}
@@ -46,4 +46,20 @@ func TestResolveTargets_RequiresATokenOutsideDevAndLocal(t *testing.T) {
 
 func TestTargetNames(t *testing.T) {
 	assert.Equal(t, []string{"execution", "definition"}, testConfig().TargetNames())
+}
+
+func TestResolveTargets_RequiresHTTPSOutsideDevAndLocal(t *testing.T) {
+	cfg := testConfig()
+	cfg.Targets[0].Addr = "http://execution.internal"
+	token := func(string) string { return "tok" }
+
+	for _, env := range []string{"test", "staging", "prod"} {
+		_, err := cfg.ResolveTargets(env, token, time.Second)
+		require.Error(t, err, env)
+		assert.Contains(t, err.Error(), "https", env)
+	}
+	for _, env := range []string{"dev", "local"} {
+		_, err := cfg.ResolveTargets(env, token, time.Second)
+		assert.NoError(t, err, env)
+	}
 }

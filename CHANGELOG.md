@@ -65,6 +65,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `/healthz` returns 503 when no SQS receive has succeeded for two minutes, so a consumer that cannot receive (denied permission, wrong queue or region) stops being ready and is restarted.
 - A consumer that returns without being stopped, and a health server that cannot bind, stop the process like a failed consumer does.
 - Alerts for a failing SQS receive and for a queue backlog.
+- Outside `dev` and `local` every target address must be `https://`, and the forwarding client does not follow redirects, so the internal token is never sent in cleartext or to another host.
+- The Dockerfile removes the private-module credential in the same `RUN` that uses it, and the release workflow exports the final stage's build cache only (`mode=min`); the builder cache of earlier releases held the token, so the `GO_PRIVATE_TOKEN` secret needs rotating.
+- A malformed message body is no longer written to the logs; the log keeps its size and SHA-256 and the dead-letter queue keeps the body.
 - **Platform libraries** `platform-events/v2` v2.1.0 and `platform-gincommon` v1.6.0; Go 1.26.9. Collectors are built with `platform-gincommon` constructors.
 - `APP_ENV` must be one of `local`, `dev`, `test`, `staging`, `prod`; a malformed number or duration fails startup instead of falling back to its default; every target's token is required outside dev and local, not only in prod; settings are cross-checked (handler timeout within the visibility timeout, forward timeout within the handler timeout).
 - The chart's topology matches the example: the workflow-stream-gateway target, the dashboard queue and the 11 dashboard routes are present, and the IAM policy lists the dashboard queue.

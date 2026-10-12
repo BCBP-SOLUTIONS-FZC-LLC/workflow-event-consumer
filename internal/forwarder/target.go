@@ -64,7 +64,10 @@ func NewTarget(name, addr, pathPrefix, token string, timeout time.Duration) *Tar
 		addr:       strings.TrimRight(addr, "/"),
 		pathPrefix: strings.TrimRight(pathPrefix, "/"),
 		token:      token,
-		http:       &http.Client{Timeout: timeout},
+		http: &http.Client{
+			Timeout:       timeout,
+			CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
+		},
 	}
 }
 

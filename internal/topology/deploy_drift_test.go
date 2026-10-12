@@ -114,3 +114,36 @@ func runbookSection(t *testing.T, doc, heading string) string {
 	}
 	return rest
 }
+
+func TestDockerfileLeavesNoCredentialInALayer(t *testing.T) {
+	raw, err := os.ReadFile("../../Dockerfile")
+	require.NoError(t, err)
+
+	var instructions []string
+	var current strings.Builder
+	for _, line := range strings.Split(string(raw), "\n") {
+		trimmed := strings.TrimRight(line, " ")
+		current.WriteString(strings.TrimSuffix(trimmed, "\\"))
+		current.WriteString(" ")
+		if !strings.HasSuffix(trimmed, "\\") {
+			instructions = append(instructions, current.String())
+			current.Reset()
+		}
+	}
+
+	for _, ins := range instructions {
+		if !strings.Contains(ins, "git-credentials") {
+			continue
+		}
+		assert.True(t, strings.HasPrefix(strings.TrimSpace(ins), "RUN --mount=type=secret"), "credentials are written only inside a secret mount: %s", ins)
+		assert.Regexp(t, `rm -f [^;&]*git-credentials`, ins, "the same RUN removes the credential file")
+		assert.Contains(t, ins, "go mod download", "the same RUN uses the credential")
+	}
+}
+
+func TestReleaseBuilderCacheExportsOnlyTheFinalStageLayers(t *testing.T) {
+	raw, err := os.ReadFile("../../.github/workflows/release.yml")
+	require.NoError(t, err)
+
+	assert.NotContains(t, string(raw), "mode=max", "mode=max exports every builder layer to the registry")
+}

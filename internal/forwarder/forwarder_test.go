@@ -311,3 +311,19 @@ func TestForward_ExecutionReceivesACategorisedType(t *testing.T) {
 	assert.Equal(t, 1, exec.Count())
 	assert.Equal(t, "/api/v1/internal/events/user-profile", exec.LastPath())
 }
+
+func TestForward_DoesNotFollowARedirectWithTheToken(t *testing.T) {
+	elsewhere := mocks.NewDownstream()
+	defer elsewhere.Close()
+	redirector := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, elsewhere.URL()+"/stolen", http.StatusTemporaryRedirect)
+	}))
+	defer redirector.Close()
+	fwd := New(NewTarget("a", redirector.URL, "", "secret-token", time.Second))
+
+	err := fwd.Forward(context.Background(), "q", []string{"a"}, "Evt", []byte(`{"id":"1"}`))
+
+	require.Error(t, err)
+	assert.False(t, Permanent(err), "a redirect is a deployment fault that a later attempt can fix")
+	assert.Equal(t, 0, elsewhere.Count(), "the body and token are not re-sent to the redirect target")
+}

@@ -105,7 +105,7 @@ jobs:
           build-args: BUILD_VERSION=${{ github.ref_name }}
           secrets: go_private_token=${{ secrets.GO_PRIVATE_TOKEN }}
           cache-from: type=registry,ref=${{ env.IMAGE_NAME }}:buildcache
-          cache-to: type=registry,ref=${{ env.IMAGE_NAME }}:buildcache,mode=max
+          cache-to: type=registry,ref=${{ env.IMAGE_NAME }}:buildcache,mode=min
 
       - uses: sigstore/cosign-installer@v3
 
