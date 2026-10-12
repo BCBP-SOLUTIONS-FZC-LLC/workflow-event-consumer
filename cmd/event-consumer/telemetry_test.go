@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -34,7 +35,7 @@ func TestStandard_LibrariesShareRegistryCollectors(t *testing.T) {
 	observability.ForwardDurationSeconds.WithLabelValues("membership", "execution").Observe(0.1)
 	observability.HandlerDurationSeconds.WithLabelValues("membership", "ok").Observe(0.1)
 
-	srv := newHealthServer(":0", ginCfg)
+	srv := newHealthServer(":0", ginCfg, newReceiveWatch(gincommon.MetricsGatherer(), time.Hour, time.Now))
 	for _, path := range []string{"/healthz", "/metrics"} {
 		rec := httptest.NewRecorder()
 		srv.Handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, path, nil))

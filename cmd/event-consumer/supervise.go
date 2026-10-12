@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -23,24 +24,38 @@ type supervisor struct {
 	log       superviseLogger
 	wg        sync.WaitGroup
 	failed    chan error
+	stopping  atomic.Bool
 }
 
 func superviseConsumers(ctx context.Context, consumers []consumerLike, log superviseLogger) *supervisor {
-	s := &supervisor{consumers: consumers, log: log, failed: make(chan error, len(consumers))}
+	s := &supervisor{consumers: consumers, log: log, failed: make(chan error, len(consumers)+1)}
 	for _, c := range consumers {
 		s.wg.Add(1)
 		go func(c consumerLike) {
 			defer s.wg.Done()
-			if err := c.Start(ctx); err != nil {
+			err := c.Start(ctx)
+			switch {
+			case err != nil:
 				log.Error("consumer exited", map[string]any{"error": err.Error()})
-				s.failed <- fmt.Errorf("consumer exited: %w", err)
+				s.report(fmt.Errorf("consumer exited: %w", err))
+			case ctx.Err() == nil && !s.stopping.Load():
+				log.Error("consumer returned without being stopped", nil)
+				s.report(errors.New("consumer returned without being stopped"))
 			}
 		}(c)
 	}
 	return s
 }
 
+func (s *supervisor) report(err error) {
+	select {
+	case s.failed <- err:
+	default:
+	}
+}
+
 func (s *supervisor) stop(grace time.Duration) error {
+	s.stopping.Store(true)
 	for _, c := range s.consumers {
 		if err := c.Stop(); err != nil {
 			s.log.Warn("consumer stop error", map[string]any{"error": err.Error()})

@@ -57,10 +57,10 @@ its own token.
 
 | Env var | Purpose |
 | --- | --- |
-| `APP_ENV` | One of `local`, `dev`, `test`, `staging`, `prod`; any other value fails startup. Outside `dev` and `local` every target's token env var must be set |
+| `APP_ENV` | Required. One of `local`, `dev`, `test`, `staging`, `prod`; any other value fails startup. Outside `dev` and `local` every target's token env var must be set |
 | `HEALTH_PORT` | `/healthz` and `/metrics` listen port (default `8082`) |
 | `TOPOLOGY_CONFIG_PATH` | Path to the topology YAML file (default `config/topology.yaml`) |
-| `AWS_REGION`, `AWS_ENDPOINT_URL` | AWS SDK region / LocalStack override |
+| `AWS_REGION`, `AWS_ENDPOINT_URL` | AWS SDK region (required) and LocalStack override |
 | `CONSUMER_CONCURRENCY` | Concurrent handler goroutines per queue (default `10`) |
 | `VISIBILITY_TIMEOUT` | SQS visibility timeout per queue (default `30s`) |
 | `DRAIN_TIMEOUT` | Graceful-shutdown grace period per consumer (default `30s`) |

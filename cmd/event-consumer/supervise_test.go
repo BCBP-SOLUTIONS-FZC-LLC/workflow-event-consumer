@@ -94,3 +94,32 @@ type stuckConsumer struct{}
 
 func (stuckConsumer) Start(context.Context) error { select {} }
 func (stuckConsumer) Stop() error                 { return nil }
+
+func TestSuperviseConsumers_ReportsAConsumerThatReturnsWithoutShutdown(t *testing.T) {
+	c := newFakeConsumer(nil)
+	close(c.release)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	sup := superviseConsumers(ctx, []consumerLike{c}, nopLogger{})
+
+	select {
+	case err := <-sup.failed:
+		assert.ErrorContains(t, err, "returned without being stopped")
+	case <-time.After(time.Second):
+		t.Fatal("a consumer that returned nil while the process was running was not reported")
+	}
+}
+
+func TestSupervisor_ReportsAnExternalFailure(t *testing.T) {
+	sup := superviseConsumers(context.Background(), nil, nopLogger{})
+
+	sup.report(errors.New("health server: address in use"))
+
+	select {
+	case err := <-sup.failed:
+		assert.ErrorContains(t, err, "address in use")
+	case <-time.After(time.Second):
+		t.Fatal("the failure was not reported")
+	}
+}

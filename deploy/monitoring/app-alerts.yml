@@ -66,3 +66,26 @@ groups:
         annotations:
           summary: "A workflow-events-consumer HTTP handler panicked"
           description: "The health and metrics server recovered a panic. Check the logs for the stack trace."
+
+      - alert: WorkflowEventsConsumerReceiveFailing
+        expr: |
+          sum(rate(platform_dependency_request_seconds_count{dependency="sqs", operation="receive_message", outcome="error"}[5m])) > 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "workflow-events-consumer cannot receive from SQS"
+          description: >
+            ReceiveMessage has been failing for 5m, so no queue is being consumed. Check the
+            role's SQS permissions, the queue URLs and AWS_REGION. The pod also fails its
+            health check after the receive stall window.
+
+      - alert: WorkflowEventsConsumerQueueBacklog
+        expr: |
+          max by (queue) (platform_queue_depth) > 1000
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "workflow-events-consumer backlog on queue {{ $labels.queue }}"
+          description: "Queue \"{{ $labels.queue }}\" has held more than 1000 messages for 15m. Check target health and CONSUMER_CONCURRENCY."

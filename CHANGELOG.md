@@ -61,6 +61,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- `APP_ENV` and `AWS_REGION` are required with no default, so an unset value no longer runs as `dev` in `us-east-1`; `HANDLER_TIMEOUT` and `RETRY_BACKOFF_BASE` must be positive.
+- `/healthz` returns 503 when no SQS receive has succeeded for two minutes, so a consumer that cannot receive (denied permission, wrong queue or region) stops being ready and is restarted.
+- A consumer that returns without being stopped, and a health server that cannot bind, stop the process like a failed consumer does.
+- Alerts for a failing SQS receive and for a queue backlog.
 - **Platform libraries** `platform-events/v2` v2.1.0 and `platform-gincommon` v1.6.0; Go 1.26.9. Collectors are built with `platform-gincommon` constructors.
 - `APP_ENV` must be one of `local`, `dev`, `test`, `staging`, `prod`; a malformed number or duration fails startup instead of falling back to its default; every target's token is required outside dev and local, not only in prod; settings are cross-checked (handler timeout within the visibility timeout, forward timeout within the handler timeout).
 - The chart's topology matches the example: the workflow-stream-gateway target, the dashboard queue and the 11 dashboard routes are present, and the IAM policy lists the dashboard queue.

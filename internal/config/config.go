@@ -60,13 +60,13 @@ func Load() (*Config, error) {
 	}
 
 	cfg := &Config{
-		AppEnv:          getEnvOrDefault("APP_ENV", "dev"),
+		AppEnv:          os.Getenv("APP_ENV"),
 		BuildVersion:    getEnvOrDefault("BUILD_VERSION", "dev"),
 		OTELServiceName: getEnvOrDefault("OTEL_SERVICE_NAME", "workflow-events-consumer"),
 
 		HealthPort: envInt("HEALTH_PORT", 8082),
 
-		AWSRegion:      getEnvOrDefault("AWS_REGION", "us-east-1"),
+		AWSRegion:      os.Getenv("AWS_REGION"),
 		AWSEndpointURL: getEnvOrDefault("AWS_ENDPOINT_URL", ""),
 
 		ConsumerConcurrency: envInt("CONSUMER_CONCURRENCY", 10),
@@ -91,8 +91,14 @@ func Load() (*Config, error) {
 }
 
 func (c *Config) Validate() error {
+	if c.AppEnv == "" {
+		return fmt.Errorf("APP_ENV is required, one of %s", strings.Join(appEnvs, ", "))
+	}
 	if !slices.Contains(appEnvs, c.AppEnv) {
 		return fmt.Errorf("APP_ENV must be one of %s", strings.Join(appEnvs, ", "))
+	}
+	if c.AWSRegion == "" {
+		return fmt.Errorf("AWS_REGION is required")
 	}
 	if c.TopologyPath == "" {
 		return fmt.Errorf("TOPOLOGY_CONFIG_PATH is required")
@@ -111,6 +117,12 @@ func (c *Config) Validate() error {
 	}
 	if c.ForwardTimeout <= 0 {
 		return fmt.Errorf("FORWARD_TIMEOUT must be > 0")
+	}
+	if c.HandlerTimeout <= 0 {
+		return fmt.Errorf("HANDLER_TIMEOUT must be > 0")
+	}
+	if c.RetryBackoffBase <= 0 {
+		return fmt.Errorf("RETRY_BACKOFF_BASE must be > 0")
 	}
 	if c.HandlerTimeout > c.VisibilityTimeout {
 		return fmt.Errorf("HANDLER_TIMEOUT must not exceed VISIBILITY_TIMEOUT")

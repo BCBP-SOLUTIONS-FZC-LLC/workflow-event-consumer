@@ -10,6 +10,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/BCBP-SOLUTIONS-FZC-LLC/platform-gincommon/pkg/gincommon"
 	"github.com/BCBP-SOLUTIONS-FZC-LLC/platform-gincommon/pkg/logger"
 
 	"github.com/BCBP-SOLUTIONS-FZC-LLC/workflow-events-consumer/internal/config"
@@ -52,10 +53,12 @@ func main() {
 	}
 	sup := superviseConsumers(ctx, consumers, wlog)
 
-	healthSrv := newHealthServer(fmt.Sprintf(":%d", cfg.HealthPort), observability.GinConfig(cfg.OTELServiceName, cfg.BuildVersion, cfg.AppEnv, wlog))
+	watch := newReceiveWatch(gincommon.MetricsGatherer(), receiveStallWindow, time.Now)
+	healthSrv := newHealthServer(fmt.Sprintf(":%d", cfg.HealthPort), observability.GinConfig(cfg.OTELServiceName, cfg.BuildVersion, cfg.AppEnv, wlog), watch)
 	go func() {
 		if err := healthSrv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			wlog.Error("health server exited", map[string]any{"error": err.Error()})
+			sup.report(fmt.Errorf("health server exited: %w", err))
 		}
 	}()
 
