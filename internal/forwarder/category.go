@@ -1,6 +1,6 @@
 package forwarder
 
-const executionTargetName = "execution"
+const ExecutionTarget = "execution"
 
 var category = map[string]string{
 	"DelegationStarted":       "delegation",
@@ -16,4 +16,9 @@ var category = map[string]string{
 func categoryFor(eventType string) (string, bool) {
 	c, ok := category[eventType]
 	return c, ok
+}
+
+func Categorised(eventType string) bool {
+	_, ok := categoryFor(eventType)
+	return ok
 }

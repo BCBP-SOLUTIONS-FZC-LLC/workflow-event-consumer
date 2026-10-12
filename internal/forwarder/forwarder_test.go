@@ -327,3 +327,19 @@ func TestForward_DoesNotFollowARedirectWithTheToken(t *testing.T) {
 	assert.False(t, Permanent(err), "a redirect is a deployment fault that a later attempt can fix")
 	assert.Equal(t, 0, elsewhere.Count(), "the body and token are not re-sent to the redirect target")
 }
+
+func TestForward_AnUnknownTargetFailsBeforeAnyTargetIsCalled(t *testing.T) {
+	a := mocks.NewDownstream()
+	defer a.Close()
+	fwd := New(NewTarget("a", a.URL(), "", "t", time.Second))
+
+	err := fwd.Forward(context.Background(), "q", []string{"a", "ghost"}, "Evt", []byte(`{"id":"1"}`))
+
+	require.Error(t, err)
+	assert.Equal(t, 0, a.Count(), "a delivered event would be reported failed and redelivered")
+}
+
+func TestCategorised(t *testing.T) {
+	assert.True(t, Categorised("UserDeleted"))
+	assert.False(t, Categorised("SomeFutureEventType"))
+}

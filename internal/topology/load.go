@@ -5,6 +5,8 @@ import (
 	"os"
 
 	"gopkg.in/yaml.v3"
+
+	"github.com/BCBP-SOLUTIONS-FZC-LLC/workflow-events-consumer/internal/forwarder"
 )
 
 func Load(path string) (Config, error) {
@@ -67,6 +69,9 @@ func (c Config) validate() error {
 		for _, name := range targets {
 			if !targetNames[name] {
 				return fmt.Errorf("route %q: references undeclared target %q", eventType, name)
+			}
+			if name == forwarder.ExecutionTarget && !forwarder.Categorised(eventType) {
+				return fmt.Errorf("route %q: the %s target has no route for this event type", eventType, name)
 			}
 		}
 	}

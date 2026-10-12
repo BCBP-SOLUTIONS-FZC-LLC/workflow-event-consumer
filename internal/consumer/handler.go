@@ -21,12 +21,16 @@ func MakeHandler(queue string, fwd *forwarder.Forwarder, router Router, dlq even
 
 		targets := router.Resolve(env.Type)
 
-		err := fwd.Forward(ctx, queue, targets, env.Type, body)
-		if err != nil && forwarder.Permanent(err) {
-			err = deadLetter(ctx, dlq, err)
-		}
-
 		result := "ok"
+		err := fwd.Forward(ctx, queue, targets, env.Type, body)
+		switch {
+		case len(targets) == 0:
+			result = "dropped"
+		case err != nil && forwarder.Permanent(err):
+			if err = deadLetter(ctx, dlq, err); err == nil {
+				result = "dead_lettered"
+			}
+		}
 		if err != nil {
 			result = "error"
 		}

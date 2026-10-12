@@ -37,11 +37,16 @@ func (f *Forwarder) Forward(ctx context.Context, queue string, targetNames []str
 		errs []error
 	)
 
+	resolved := make([]*Target, 0, len(targetNames))
 	for _, name := range targetNames {
 		t, ok := f.targets[name]
 		if !ok {
 			return fmt.Errorf("forwarder: unknown target %q", name)
 		}
+		resolved = append(resolved, t)
+	}
+
+	for _, t := range resolved {
 		if !t.accepts(eventType) {
 			observability.ForwardTotal.WithLabelValues(queue, t.Name, "skipped").Inc()
 			continue

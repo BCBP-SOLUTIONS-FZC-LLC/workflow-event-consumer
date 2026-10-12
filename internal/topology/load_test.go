@@ -121,3 +121,20 @@ func TestValidate(t *testing.T) {
 		})
 	}
 }
+
+func TestValidate_ExecutionOnlyReceivesCategorisedTypes(t *testing.T) {
+	cfg := Config{
+		Targets: []Target{{Name: "execution", Addr: "https://e", TokenEnv: "E"}},
+		Queues:  []Queue{{Name: "q", URL: "u"}},
+		Routes:  map[string][]string{"SomeFutureEventType": {"execution"}},
+	}
+
+	err := cfg.validate()
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "SomeFutureEventType")
+	assert.Contains(t, err.Error(), "execution")
+
+	cfg.Routes = map[string][]string{"UserDeleted": {"execution"}}
+	assert.NoError(t, cfg.validate())
+}

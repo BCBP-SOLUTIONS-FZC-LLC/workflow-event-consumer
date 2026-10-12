@@ -185,3 +185,45 @@ func TestMakeHandler_ForwardsTheOriginalBodyOfASchemaEncodedEvent(t *testing.T) 
 	assert.Equal(t, "schema-1", got.SchemaID)
 	assert.JSONEq(t, `"AAEC"`, string(got.Payload), "the encoded payload reaches the target for its own decoder")
 }
+
+func handlerResults(t *testing.T) map[string]float64 {
+	t.Helper()
+	out := map[string]float64{}
+	for _, result := range []string{"ok", "error", "dead_lettered", "dropped"} {
+		out[result] = obstest.Sum(t, "workflow_events_consumer_handler_duration_seconds", map[string]string{"queue": "membership", "result": result})
+	}
+	return out
+}
+
+func TestMakeHandler_RecordsEachOutcomeUnderItsOwnResult(t *testing.T) {
+	exec := mocks.NewDownstream()
+	defer exec.Close()
+	fwd := forwarder.New(forwarder.NewTarget("definition", exec.URL(), "", "token", time.Second))
+	routes := map[string][]string{"Routed": {"definition"}, "Dropped": {}}
+	handler := MakeHandler("membership", fwd, NewRouter(routes, []string{"definition"}), &eventsmock.DLQPublisher{})
+	env := func(typ string) events.Envelope[json.RawMessage] {
+		return events.Envelope[json.RawMessage]{ID: "e", Type: typ, Source: "iam", Payload: json.RawMessage(`{}`)}
+	}
+
+	before := handlerResults(t)
+	require.NoError(t, handler(context.Background(), env("Routed")))
+	require.NoError(t, handler(context.Background(), env("Dropped")))
+	exec.SetStatus(http.StatusServiceUnavailable)
+	require.Error(t, handler(context.Background(), env("Routed")))
+	after := handlerResults(t)
+
+	assert.Equal(t, before["ok"]+1, after["ok"])
+	assert.Equal(t, before["dropped"]+1, after["dropped"], "an event routed to no target is acknowledged and counted")
+	assert.Equal(t, before["error"]+1, after["error"])
+}
+
+func TestMakeHandler_ADeadLetteredMessageIsNotCountedAsOK(t *testing.T) {
+	c, _, _ := newDeadLetterHarness(t, map[string]int{"definition": http.StatusBadRequest})
+
+	before := handlerResults(t)
+	require.NoError(t, c.Inject(deadLetterEnvelope()))
+	after := handlerResults(t)
+
+	assert.Equal(t, before["dead_lettered"]+1, after["dead_lettered"])
+	assert.Equal(t, before["ok"], after["ok"])
+}

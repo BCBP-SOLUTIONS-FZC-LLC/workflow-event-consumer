@@ -72,7 +72,7 @@ func NewTarget(name, addr, pathPrefix, token string, timeout time.Duration) *Tar
 }
 
 func (t *Target) accepts(eventType string) bool {
-	if t.Name != executionTargetName {
+	if t.Name != ExecutionTarget {
 		return true
 	}
 	_, ok := categoryFor(eventType)
@@ -81,7 +81,7 @@ func (t *Target) accepts(eventType string) bool {
 
 func (t *Target) forward(ctx context.Context, eventType string, body []byte) error {
 	path := t.pathPrefix
-	if t.Name == executionTargetName {
+	if t.Name == ExecutionTarget {
 		if c, ok := categoryFor(eventType); ok {
 			path = t.pathPrefix + "/" + c
 		}
