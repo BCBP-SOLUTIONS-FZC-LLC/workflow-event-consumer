@@ -17,8 +17,10 @@ import (
 func TestBuild_EmptyQueueURLErrors(t *testing.T) {
 	fwd := forwarder.New()
 	router := NewRouter(nil, nil)
-	_, err := Build(QueueSpec{Name: "membership", URL: ""}, Options{}, fwd, router)
-	assert.Error(t, err)
+	_, err := Build(QueueSpec{Name: "membership", URL: ""}, Options{DeadLetters: &eventsmock.DLQPublisher{}, Region: "us-east-1"}, fwd, router)
+
+	require.Error(t, err)
+	assert.NotContains(t, err.Error(), "dead-letter publisher")
 }
 
 func TestBuild_AcceptsTheProductionOptions(t *testing.T) {

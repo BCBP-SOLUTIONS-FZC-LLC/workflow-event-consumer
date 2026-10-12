@@ -25,7 +25,7 @@ func TestChartTopologyMatchesTheExample(t *testing.T) {
 	}
 	require.NoError(t, yaml.Unmarshal(raw, &values))
 
-	assert.Equal(t, example.TargetNames(), values.Topology.TargetNames(), "chart targets")
+	assert.Equal(t, example.Targets, values.Topology.Targets, "chart targets: name, addr, tokenEnv and pathPrefix")
 	assert.Equal(t, queueNames(example), queueNames(values.Topology), "chart queues")
 	assert.Equal(t, example.Routes, values.Topology.Routes, "chart routes")
 }

@@ -21,9 +21,9 @@ The service consumes SQS and sends to dead-letter queues; it never publishes to 
        eks.amazonaws.com/role-arn: arn:aws:iam::<account-id>:role/workflow-events-consumer
    ```
 
-3. Verify: `kubectl exec` into a running pod and confirm
-   `aws sts get-caller-identity` resolves to the expected role — the pod
-   should never be able to call `sns:Publish` or any S3/Glue action.
+3. Verify: attach an ephemeral debug container that has the AWS CLI, since the service image has no shell:
+   `kubectl debug -it pod/<pod> --image=amazon/aws-cli --target=event-consumer -- sts get-caller-identity`
+   resolves to the expected role. The role must not be able to call `sns:Publish` or any S3 or Glue action.
 
 ## Rollback
 

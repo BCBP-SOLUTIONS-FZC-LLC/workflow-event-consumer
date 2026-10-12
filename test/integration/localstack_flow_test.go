@@ -19,6 +19,7 @@ import (
 	"github.com/BCBP-SOLUTIONS-FZC-LLC/workflow-events-consumer/internal/consumer"
 	"github.com/BCBP-SOLUTIONS-FZC-LLC/workflow-events-consumer/internal/forwarder"
 	"github.com/BCBP-SOLUTIONS-FZC-LLC/workflow-events-consumer/internal/observability/obstest"
+	"github.com/BCBP-SOLUTIONS-FZC-LLC/workflow-events-consumer/internal/topology"
 	"github.com/BCBP-SOLUTIONS-FZC-LLC/workflow-events-consumer/test/fixtures"
 	"github.com/BCBP-SOLUTIONS-FZC-LLC/workflow-events-consumer/test/mocks"
 )
@@ -32,28 +33,31 @@ func setLocalStackCredentials(t *testing.T) {
 	t.Setenv("AWS_REGION", "us-east-1")
 }
 
-// testRoutes mirrors config/topology.example.yaml's routing table for the
-// event types these tests actually publish.
-var testRoutes = map[string][]string{
-	"DelegationStarted":           {"execution"},
-	"UserDeleted":                 {"execution"},
-	"DepartmentMembershipRevoked": {"definition"},
+func exampleRoutes(t *testing.T) map[string][]string {
+	t.Helper()
+	topo, err := topology.Load("../../config/topology.example.yaml")
+	require.NoError(t, err)
+	return topo.Routes
 }
 
 func buildConsumer(t *testing.T, ls *fixtures.LocalStackSNSSQS, queueName, queueURL string, fwd *forwarder.Forwarder, visibilityTimeout time.Duration) events.Consumer {
 	t.Helper()
-	router := consumer.NewRouter(testRoutes, []string{"execution", "definition"})
+	router := consumer.NewRouter(exampleRoutes(t), fwd.Names())
 	deadLetters, err := events.NewSQSDLQPublisher(events.DLQConfig{Region: "us-east-1", EndpointURL: ls.EndpointURL, ConsumerName: "test"})
 	require.NoError(t, err)
 	c, err := consumer.Build(
 		consumer.QueueSpec{Name: queueName, URL: queueURL},
 		consumer.Options{
-			DeadLetters:       deadLetters,
-			Region:            "us-east-1",
-			EndpointURL:       ls.EndpointURL,
-			Concurrency:       2,
-			VisibilityTimeout: visibilityTimeout,
-			DrainTimeout:      5 * time.Second,
+			DeadLetters:        deadLetters,
+			Region:             "us-east-1",
+			EndpointURL:        ls.EndpointURL,
+			Concurrency:        2,
+			VisibilityTimeout:  visibilityTimeout,
+			DrainTimeout:       5 * time.Second,
+			HandlerTimeout:     visibilityTimeout,
+			RetryBackoffBase:   time.Second,
+			RetryBackoffMax:    5 * time.Second,
+			QueueDepthInterval: 10 * time.Second,
 		},
 		fwd,
 		router,
@@ -333,7 +337,7 @@ func TestLocalStackFlow_MalformedBodyIsDeadLetteredAndNeverLogged(t *testing.T) 
 		consumer.QueueSpec{Name: "user", URL: userQueue.QueueURL},
 		consumer.Options{DeadLetters: deadLetters, Region: "us-east-1", EndpointURL: ls.EndpointURL, Concurrency: 1, VisibilityTimeout: 5 * time.Second, DrainTimeout: 5 * time.Second, Logger: logs},
 		forwarder.New(),
-		consumer.NewRouter(testRoutes, nil),
+		consumer.NewRouter(exampleRoutes(t), nil),
 	)
 	require.NoError(t, err)
 	startConsumer(t, c)

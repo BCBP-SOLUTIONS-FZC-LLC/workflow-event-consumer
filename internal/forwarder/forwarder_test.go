@@ -2,12 +2,12 @@ package forwarder
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"sort"
-	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -110,39 +110,44 @@ func TestForward_TimeoutEnforced(t *testing.T) {
 }
 
 func TestForward_Concurrent(t *testing.T) {
-	var inFlight int32
-	var maxInFlight int32
+	arrived := make(chan struct{}, 2)
+	release := make(chan struct{})
 	handler := func(w http.ResponseWriter, r *http.Request) {
-		n := atomic.AddInt32(&inFlight, 1)
-		defer atomic.AddInt32(&inFlight, -1)
-		for {
-			cur := atomic.LoadInt32(&maxInFlight)
-			if n <= cur || atomic.CompareAndSwapInt32(&maxInFlight, cur, n) {
-				break
-			}
-		}
-		time.Sleep(50 * time.Millisecond)
+		arrived <- struct{}{}
+		<-release
 		w.WriteHeader(http.StatusOK)
 	}
 	a := httptest.NewServer(http.HandlerFunc(handler))
 	defer a.Close()
 	b := httptest.NewServer(http.HandlerFunc(handler))
 	defer b.Close()
+	fwd := New(NewTarget("a", a.URL, "", "t", 5*time.Second), NewTarget("b", b.URL, "", "t", 5*time.Second))
 
-	fwd := New(NewTarget("a", a.URL, "", "t", time.Second), NewTarget("b", b.URL, "", "t", time.Second))
-
-	var wg sync.WaitGroup
-	wg.Add(1)
-	start := time.Now()
+	done := make(chan error, 1)
 	go func() {
-		defer wg.Done()
-		_ = fwd.Forward(context.Background(), "membership", []string{"a", "b"}, "test.event", []byte(`{}`))
+		done <- fwd.Forward(context.Background(), "membership", []string{"a", "b"}, "test.event", []byte(`{}`))
 	}()
-	wg.Wait()
-	elapsed := time.Since(start)
 
-	assert.Equal(t, int32(2), maxInFlight, "both targets should be called concurrently")
-	assert.Less(t, elapsed, 100*time.Millisecond)
+	for i := 0; i < 2; i++ {
+		select {
+		case <-arrived:
+		case <-time.After(3 * time.Second):
+			close(release)
+			t.Fatal("both targets must be in flight at the same time")
+		}
+	}
+	close(release)
+	require.NoError(t, <-done)
+}
+
+func TestPermanent_WrappedAndTransportErrors(t *testing.T) {
+	permanent := &StatusError{Target: "a", Status: http.StatusBadRequest}
+	transient := &StatusError{Target: "b", Status: http.StatusServiceUnavailable}
+
+	assert.True(t, Permanent(fmt.Errorf("wrapped: %w", permanent)))
+	assert.True(t, Permanent(errors.Join(errors.Join(permanent, permanent), permanent)))
+	assert.False(t, Permanent(errors.Join(errors.Join(permanent, transient), permanent)))
+	assert.False(t, Permanent(errors.New("a: connection refused")), "a transport error is transient")
 }
 
 func TestForward_MappedTypeUsesCategoryPath(t *testing.T) {
