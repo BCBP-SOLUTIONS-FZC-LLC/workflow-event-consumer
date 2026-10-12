@@ -24,8 +24,11 @@ func (e *StatusError) Error() string {
 }
 
 func (e *StatusError) permanent() bool {
-	return e.Status >= 400 && e.Status < 500 &&
-		e.Status != http.StatusRequestTimeout && e.Status != http.StatusTooManyRequests
+	switch e.Status {
+	case http.StatusBadRequest, http.StatusRequestEntityTooLarge, http.StatusUnprocessableEntity:
+		return true
+	}
+	return false
 }
 
 func Permanent(err error) bool {
@@ -63,6 +66,14 @@ func NewTarget(name, addr, pathPrefix, token string, timeout time.Duration) *Tar
 		token:      token,
 		http:       &http.Client{Timeout: timeout},
 	}
+}
+
+func (t *Target) accepts(eventType string) bool {
+	if t.Name != executionTargetName {
+		return true
+	}
+	_, ok := categoryFor(eventType)
+	return ok
 }
 
 func (t *Target) forward(ctx context.Context, eventType string, body []byte) error {

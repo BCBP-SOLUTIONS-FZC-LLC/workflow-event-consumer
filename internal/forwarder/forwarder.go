@@ -42,6 +42,10 @@ func (f *Forwarder) Forward(ctx context.Context, queue string, targetNames []str
 		if !ok {
 			return fmt.Errorf("forwarder: unknown target %q", name)
 		}
+		if !t.accepts(eventType) {
+			observability.ForwardTotal.WithLabelValues(queue, t.Name, "skipped").Inc()
+			continue
+		}
 		wg.Add(1)
 		go func(t *Target) {
 			defer wg.Done()

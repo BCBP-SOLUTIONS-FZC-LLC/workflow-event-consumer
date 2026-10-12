@@ -17,7 +17,7 @@ func MakeHandler(queue string, fwd *forwarder.Forwarder, router Router, dlq even
 	return func(ctx context.Context, env events.Envelope[json.RawMessage]) error {
 		start := time.Now()
 
-		body, _ := json.Marshal(env)
+		body := originalBody(ctx, env)
 
 		targets := router.Resolve(env.Type)
 
@@ -45,4 +45,12 @@ func deadLetter(ctx context.Context, dlq events.DLQPublisher, cause error) error
 		return errors.Join(cause, fmt.Errorf("dead-letter: %w", err))
 	}
 	return nil
+}
+
+func originalBody(ctx context.Context, env events.Envelope[json.RawMessage]) []byte {
+	if src, ok := events.SourceMessageFromContext(ctx); ok {
+		return src.Body
+	}
+	body, _ := json.Marshal(env)
+	return body
 }

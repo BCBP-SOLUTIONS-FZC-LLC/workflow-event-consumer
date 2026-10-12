@@ -56,6 +56,7 @@ func Build(spec QueueSpec, opts Options, fwd *forwarder.Forwarder, router Router
 		events.WithRetryBackoff(opts.RetryBackoffBase, opts.RetryBackoffMax),
 		events.WithQueueDepthMetrics(opts.QueueDepthInterval),
 		events.WithMalformedBodyLogging(),
+		events.WithConsumerCodec(events.NoopCodec{}),
 		events.WithDLQForwarding(opts.DeadLetters),
 		events.WithMaxReceiveCount(maxReceiveCount),
 	)

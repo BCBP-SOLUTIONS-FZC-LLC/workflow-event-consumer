@@ -103,12 +103,12 @@ exactly the target that needs it, not to a target that will only discard it.
 a thin lookup — the catalogue itself lives entirely in the YAML file, not in
 Go source, so adding a route is a config change, not a code change.
 
-An event type absent from the routing table — a type not yet added to this
-catalogue — falls back to broadcasting to every declared target. This is a
-forward-compatibility safety net, not the steady-state behavior: both
-downstream services already accept an unrecognized type as a `200` no-op, so
-a genuinely new event type is never silently dropped while this table is
-updated to route it precisely.
+An event type absent from the routing table falls back to every declared target
+that accepts it. This is a forward-compatibility safety net, not the
+steady-state behavior: the Definition Service and the Stream Gateway answer an
+unrecognized type with a `200` no-op. The Execution Service registers a route
+per event category only, so the consumer does not forward it a type outside
+its category map; the forward is counted with result `skipped`.
 
 ## Queues and targets: also config-driven
 
@@ -129,7 +129,7 @@ A message is only deleted from its queue once **every target it was routed
 to** returns `2xx`. If any of them fails, the message stays visible and SQS
 redelivers it — after the queue's configured `maxReceiveCount`, it lands in
 that queue's dead-letter queue. A failure that no later attempt can fix, a
-`4xx` other than `408` and `429` from every failing target, sends the original
+`400`, `413` or `422` from every failing target, sends the original
 message to the dead-letter queue immediately, with a reason naming the target
 and status. There is no retry or circuit-breaker logic beyond what SQS itself
 provides. The consumer's own receive threshold is 4, below the queues'

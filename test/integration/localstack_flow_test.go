@@ -147,7 +147,7 @@ func TestLocalStackFlow_RoutesToOnlyDefinition(t *testing.T) {
 	assert.Equal(t, "def-token", def.LastToken())
 }
 
-func TestLocalStackFlow_UnknownTypeBroadcastsToAll(t *testing.T) {
+func TestLocalStackFlow_UnknownTypeBroadcastsToEveryTargetThatAcceptsIt(t *testing.T) {
 	obstest.Setup()
 	setLocalStackCredentials(t)
 	ctx := context.Background()
@@ -172,8 +172,9 @@ func TestLocalStackFlow_UnknownTypeBroadcastsToAll(t *testing.T) {
 	ls.Publish(ctx, t, "iam-membership-events", body)
 
 	require.Eventually(t, func() bool {
-		return exec.Count() == 1 && def.Count() == 1
-	}, 15*time.Second, 200*time.Millisecond, "an unrecognized type should broadcast to every target")
+		return def.Count() == 1
+	}, 15*time.Second, 200*time.Millisecond, "an unrecognized type should reach every target that accepts it")
+	assert.Equal(t, 0, exec.Count(), "execution has no route for an uncategorised type")
 }
 
 func TestLocalStackFlow_OneTargetFailsBlocksAck(t *testing.T) {
@@ -267,4 +268,29 @@ func TestLocalStackFlow_TransientFailureIsNotDeadLettered(t *testing.T) {
 
 	require.Eventually(t, func() bool { return exec.Count() >= 2 }, 20*time.Second, 200*time.Millisecond, "a 503 is redelivered")
 	assert.Empty(t, ls.DrainQueue(ctx, t, userQueue.DLQURL), "a transient failure stays on the source queue")
+}
+
+func TestLocalStackFlow_SchemaEncodedEventIsForwardedUnchanged(t *testing.T) {
+	obstest.Setup()
+	setLocalStackCredentials(t)
+	ctx := context.Background()
+	ls := fixtures.NewLocalStackSNSSQS(ctx, t)
+
+	exec := mocks.NewDownstream()
+	defer exec.Close()
+	fwd := forwarder.New(forwarder.NewTarget("execution", exec.URL(), "", "exec-token", 5*time.Second))
+
+	membershipQueue := ls.Queues["iam-membership-events"]
+	startConsumer(t, buildConsumer(t, ls, "membership", membershipQueue.QueueURL, fwd, 5*time.Second))
+
+	env := events.NewEnvelope("DelegationStarted", "iam", json.RawMessage(`"AAEC"`))
+	env.SchemaID = "schema-1"
+	body, err := json.Marshal(env)
+	require.NoError(t, err)
+	ls.Publish(ctx, t, "iam-membership-events", body)
+
+	require.Eventually(t, func() bool { return exec.Count() == 1 }, 15*time.Second, 200*time.Millisecond)
+	got := exec.Received()[0]
+	assert.Equal(t, "schema-1", got.SchemaID)
+	assert.JSONEq(t, `"AAEC"`, string(got.Payload))
 }

@@ -69,7 +69,7 @@ func TestMakeHandler_RoutesToOnlyOneTarget(t *testing.T) {
 	assert.Equal(t, 1, def.Count())
 }
 
-func TestMakeHandler_UnknownTypeBroadcastsToAll(t *testing.T) {
+func TestMakeHandler_UnknownTypeBroadcastsToEveryTargetThatAcceptsIt(t *testing.T) {
 	exec := mocks.NewDownstream()
 	defer exec.Close()
 	def := mocks.NewDownstream()
@@ -85,7 +85,7 @@ func TestMakeHandler_UnknownTypeBroadcastsToAll(t *testing.T) {
 	env := events.Envelope[json.RawMessage]{ID: "evt-4", Type: "SomeFutureEventType", Payload: json.RawMessage(`{}`)}
 	err := handler(context.Background(), env)
 	require.NoError(t, err)
-	assert.Equal(t, 1, exec.Count())
+	assert.Equal(t, 0, exec.Count(), "execution has no route for an uncategorised type")
 	assert.Equal(t, 1, def.Count())
 }
 
@@ -152,7 +152,7 @@ func TestMakeHandler_TransientFailureIsRetried(t *testing.T) {
 func TestMakeHandler_MixedFailureIsRetried(t *testing.T) {
 	c, dlq, _ := newDeadLetterHarness(t, map[string]int{
 		"definition": http.StatusBadRequest,
-		"execution":  http.StatusServiceUnavailable,
+		"gateway":    http.StatusServiceUnavailable,
 	})
 
 	require.Error(t, c.Inject(deadLetterEnvelope()))
@@ -168,4 +168,20 @@ func TestMakeHandler_FailedDeadLetterKeepsTheMessage(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "sqs unavailable")
 	assert.Contains(t, err.Error(), "definition")
+}
+
+func TestMakeHandler_ForwardsTheOriginalBodyOfASchemaEncodedEvent(t *testing.T) {
+	exec := mocks.NewDownstream()
+	defer exec.Close()
+	fwd := forwarder.New(forwarder.NewTarget("execution", exec.URL(), "", "token", time.Second))
+	c := &eventsmock.Consumer{Codec: events.NoopCodec{}}
+	c.SetHandler(MakeHandler("membership", fwd, NewRouter(testRoutes, []string{"execution"}), &eventsmock.DLQPublisher{}))
+
+	env := events.Envelope[json.RawMessage]{ID: "evt-7", Type: "DelegationStarted", Source: "iam", SchemaID: "schema-1", Payload: json.RawMessage(`"AAEC"`)}
+	require.NoError(t, c.Inject(env))
+
+	require.Equal(t, 1, exec.Count())
+	got := exec.Received()[0]
+	assert.Equal(t, "schema-1", got.SchemaID)
+	assert.JSONEq(t, `"AAEC"`, string(got.Payload), "the encoded payload reaches the target for its own decoder")
 }

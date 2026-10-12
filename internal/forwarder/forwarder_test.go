@@ -236,9 +236,12 @@ func TestForward_FailureClassification(t *testing.T) {
 		permanent bool
 	}{
 		{http.StatusBadRequest, true},
-		{http.StatusUnauthorized, true},
-		{http.StatusNotFound, true},
+		{http.StatusRequestEntityTooLarge, true},
 		{http.StatusUnprocessableEntity, true},
+		{http.StatusUnauthorized, false},
+		{http.StatusForbidden, false},
+		{http.StatusNotFound, false},
+		{http.StatusMethodNotAllowed, false},
 		{http.StatusRequestTimeout, false},
 		{http.StatusTooManyRequests, false},
 		{http.StatusInternalServerError, false},
@@ -282,4 +285,29 @@ func TestForward_PermanentOnlyWhenEveryFailureIsPermanent(t *testing.T) {
 	assert.True(t, Permanent(permanentAndOK))
 
 	assert.False(t, Permanent(nil))
+}
+
+func TestForward_ExecutionIsSkippedForATypeItHasNoRouteFor(t *testing.T) {
+	exec := mocks.NewDownstream()
+	defer exec.Close()
+	def := mocks.NewDownstream()
+	defer def.Close()
+	fwd := New(NewTarget("execution", exec.URL(), "", "t", time.Second), NewTarget("definition", def.URL(), "", "t", time.Second))
+
+	err := fwd.Forward(context.Background(), "q", []string{"execution", "definition"}, "SomeFutureEventType", []byte(`{"id":"1"}`))
+
+	require.NoError(t, err)
+	assert.Equal(t, 0, exec.Count(), "execution registers a route per event category only")
+	assert.Equal(t, 1, def.Count())
+}
+
+func TestForward_ExecutionReceivesACategorisedType(t *testing.T) {
+	exec := mocks.NewDownstream()
+	defer exec.Close()
+	fwd := New(NewTarget("execution", exec.URL(), "", "t", time.Second))
+
+	require.NoError(t, fwd.Forward(context.Background(), "q", []string{"execution"}, "UserDeleted", []byte(`{"id":"1"}`)))
+
+	assert.Equal(t, 1, exec.Count())
+	assert.Equal(t, "/api/v1/internal/events/user-profile", exec.LastPath())
 }

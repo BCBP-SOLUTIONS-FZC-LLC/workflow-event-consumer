@@ -2,7 +2,7 @@
 
 ## Event routing catalogue
 
-The `routes` map of [`config/topology.example.yaml`](../config/topology.example.yaml) is the single source of truth for which downstream service receives an event type. The same file declares every queue and every downstream target (see [ARCHITECTURE.md](../ARCHITECTURE.md#queues-and-targets-also-config-driven)). An event type absent from the map is broadcast to every declared target; a type mapped to an empty target list is dropped. Each downstream service's own event catalogue and this table change together when an event type is added upstream.
+The `routes` map of [`config/topology.example.yaml`](../config/topology.example.yaml) is the single source of truth for which downstream service receives an event type. The same file declares every queue and every downstream target (see [ARCHITECTURE.md](../ARCHITECTURE.md#queues-and-targets-also-config-driven)). An event type absent from the map is sent to every declared target that accepts it (the `execution` target accepts only the types of the category table below); a type mapped to an empty target list is dropped. Each downstream service's own event catalogue and this table change together when an event type is added upstream.
 
 | Event type | Targets |
 | --- | --- |
@@ -28,7 +28,7 @@ The `routes` map of [`config/topology.example.yaml`](../config/topology.example.
 | `TenderAssigneeOverridden` | dropped |
 | `DepartmentMembershipGranted` | dropped |
 | `DepartmentMembershipLevelChanged` | dropped |
-| *(anything else)* | all targets |
+| *(anything else)* | every target that accepts it |
 
 ## Type-scoped forwarding subpaths
 
@@ -68,7 +68,7 @@ The category map lives in code, not in the topology file: a category with no mat
 2. Check that target's own health/logs — a `5xx` there is expected to cause
    redelivery; that's by design (see [ARCHITECTURE.md](../ARCHITECTURE.md)'s
    ack-semantics section).
-3. A `4xx` other than `408` and `429` is a permanent failure: the request cannot succeed on any later attempt. When every failing target answered that way, the bridge sends the original message to the queue's dead-letter queue at once, with a reason naming the target and status, and deletes it from the source queue. Look for it in the dead-letter queue and in `platform_dlq_messages_total`. A `5xx`, `408`, `429` or a network error is transient: the message stays on the queue and is redelivered with backoff until `maxReceiveCount` is exhausted. When one target fails permanently and another transiently, the message is redelivered, because the transient target still needs it; the permanent target receives it again, which its own idempotency absorbs.
+3. A `400`, `413` or `422` is a permanent failure: the request is malformed and cannot succeed on any later attempt. When every failing target answered that way, the bridge sends the original message to the queue's dead-letter queue at once, with a reason naming the target and status, and deletes it from the source queue. Look for it in the dead-letter queue and in `platform_dlq_messages_total`. Every other status, including `401`, `403` and `404` (a rotated token or a route not yet deployed), and every network error is transient: the message stays on the queue and is redelivered with backoff until `maxReceiveCount` is exhausted. When one target fails permanently and another transiently, the message is redelivered, because the transient target still needs it; the permanent target receives it again, which its own idempotency absorbs.
 
 ## Replaying a dead-lettered message
 
