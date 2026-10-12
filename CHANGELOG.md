@@ -17,6 +17,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Alerts for failing messages, dead-lettered messages and handler panics.
 - Tests that fail when the chart's topology or `deploy/aws/policy.json` differs from `config/topology.example.yaml`.
 - `make arch-lint` with a `.go-arch-lint.yml` that fixes the import direction between `internal` packages, run by `make check` and the quality workflow.
+- Tests that fail when the runbook's route table or category table differs from the topology example or the category map.
 - A release workflow (changelog gate, image build, Cosign signature, GitHub Release), a changelog check, `.editorconfig`, `helm-lint`, `lint-workflows`, a Dockerfile digest pin check, VERSIONING.
 - Initial implementation: stateless SNS → SQS → HTTP bridge subscribing to
   `membership`, `user`, and `template` SQS queues and forwarding each event
@@ -61,3 +62,4 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - The chart's topology matches the example: the workflow-stream-gateway target, the dashboard queue and the 11 dashboard routes are present, and the IAM policy lists the dashboard queue.
 - The health server records HTTP metrics and recovers panics through the gincommon middleware, and sets timeouts.
 - Non-test code carries no comments.
+- The runbook's route and category tables list every route and category by IAM's PascalCase event type, and the topology example names the queue filter policy as the source of the dropped types.

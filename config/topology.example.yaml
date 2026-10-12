@@ -48,11 +48,10 @@ queues:
 # An event type listed with an EMPTY target list is dropped outright: it
 # says "we know about this one and deliberately don't consume it", which the
 # absent-from-the-table fallback cannot express. The IAM types at the bottom
-# of this table are exactly that case — the SNS->SQS subscription is
-# topic-wide with no filter policy, so they are delivered here whether or
-# not anyone wants them.
+# of this table are exactly that case: the filter policy of
+# membership-workflow-q delivers them here whether or not anyone wants them.
 #
-# The 11 workflow.task.*/workflow.instance.* routes below feed
+# The 11 WorkflowTask* and WorkflowInstance* routes below feed
 # workflow-stream-gateway (design/LLD/workflow_stream_gateway.md §3.1) —
 # the wf-workflow-dash-q SNS filter-policy provisioning that actually
 # delivers those 11 types onto the `dashboard` queue above is
@@ -93,7 +92,7 @@ routes:
   WorkflowInstanceTerminated: [workflow-stream-gateway]
   WorkflowInstanceFinished: [workflow-stream-gateway]
 
-  # Delivered by the topic-wide subscription, deliberately not consumed.
+  # Delivered by the membership-workflow-q filter policy, deliberately not consumed.
   # TenderAssigneeOverridden: per IAM's topology its only consumers are Audit
   # and Notification — Workflow applies the override synchronously through
   # its own node-override endpoint, never via the bus. The DepartmentMembership

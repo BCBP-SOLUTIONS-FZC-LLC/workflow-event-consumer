@@ -4,7 +4,9 @@ import (
 	"encoding/json"
 	"os"
 	"path"
+	"regexp"
 	"sort"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -62,4 +64,42 @@ func queueNames(c Config) []string {
 		names[i] = q.Name + "=" + q.URL
 	}
 	return names
+}
+
+func TestRunbookRouteTableMatchesTheExample(t *testing.T) {
+	example, err := Load("../../config/topology.example.yaml")
+	require.NoError(t, err)
+
+	raw, err := os.ReadFile("../../docs/runbook.md")
+	require.NoError(t, err)
+	section := runbookSection(t, string(raw), "## Event routing catalogue")
+
+	got := map[string][]string{}
+	for _, m := range regexp.MustCompile("(?m)^\\| `(\\w+)` \\| (.+) \\|$").FindAllStringSubmatch(section, -1) {
+		targets := []string{}
+		if m[2] != "dropped" {
+			targets = strings.Split(m[2], ", ")
+		}
+		got[m[1]] = targets
+	}
+
+	want := map[string][]string{}
+	for eventType, targets := range example.Routes {
+		if targets == nil {
+			targets = []string{}
+		}
+		want[eventType] = targets
+	}
+	assert.Equal(t, want, got, "docs/runbook.md route table must list exactly the routes of the topology")
+}
+
+func runbookSection(t *testing.T, doc, heading string) string {
+	t.Helper()
+	start := strings.Index(doc, heading)
+	require.GreaterOrEqual(t, start, 0, "runbook heading %q", heading)
+	rest := doc[start+len(heading):]
+	if end := strings.Index(rest, "\n## "); end >= 0 {
+		rest = rest[:end]
+	}
+	return rest
 }

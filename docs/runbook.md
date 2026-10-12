@@ -2,47 +2,50 @@
 
 ## Event routing catalogue
 
-[`config/topology.yaml`](../config/topology.example.yaml)'s `routes` map is
-the single source of truth for which downstream service a given event type
-is forwarded to — the same file also declares every queue and every
-downstream target (see [ARCHITECTURE.md](../ARCHITECTURE.md#queues-and-targets-also-config-driven)).
-Keep `routes` in sync with execution_service's and definition_service's own
-event catalogues — a type absent here falls back to broadcasting to every
-declared target, which is a safety net, not a substitute for updating this
-table when a new event type is added upstream.
+The `routes` map of [`config/topology.example.yaml`](../config/topology.example.yaml) is the single source of truth for which downstream service receives an event type. The same file declares every queue and every downstream target (see [ARCHITECTURE.md](../ARCHITECTURE.md#queues-and-targets-also-config-driven)). An event type absent from the map is broadcast to every declared target; a type mapped to an empty target list is dropped. Each downstream service's own event catalogue and this table change together when an event type is added upstream.
 
-| Event type | Target |
+| Event type | Targets |
 | --- | --- |
-| `delegation.started` | execution |
-| `delegation.ended` | execution |
-| `tenant.state.changed` | execution |
-| `user.deleted` | execution |
-| `user.availability.changed` | execution |
-| `department.membership.revoked` | definition |
-| *(anything else)* | broadcast to all targets |
+| `DelegationStarted` | execution |
+| `DelegationEnded` | execution |
+| `TenantStateChanged` | execution |
+| `UserDeleted` | execution |
+| `UserAvailabilityChanged` | execution |
+| `DepartmentMembershipRevoked` | definition |
+| `MembershipRevoked` | definition, execution |
+| `TenantMembershipsPurged` | execution |
+| `WorkflowTaskCreated` | workflow-stream-gateway, execution |
+| `WorkflowTaskCompleted` | workflow-stream-gateway |
+| `WorkflowTaskDeferred` | workflow-stream-gateway |
+| `WorkflowTaskReassigned` | workflow-stream-gateway |
+| `WorkflowTaskSlaWarning` | workflow-stream-gateway |
+| `WorkflowTaskSlaBreached` | workflow-stream-gateway |
+| `WorkflowInstancePaused` | workflow-stream-gateway |
+| `WorkflowInstanceResumed` | workflow-stream-gateway |
+| `WorkflowInstanceCancelled` | workflow-stream-gateway |
+| `WorkflowInstanceTerminated` | workflow-stream-gateway |
+| `WorkflowInstanceFinished` | workflow-stream-gateway |
+| `TenderAssigneeOverridden` | dropped |
+| `DepartmentMembershipGranted` | dropped |
+| `DepartmentMembershipLevelChanged` | dropped |
+| *(anything else)* | all targets |
 
-## Type-scoped forwarding subpaths (execution_service only)
+## Type-scoped forwarding subpaths
 
-Forwarding to the `execution` target no longer always POSTs to
-`/api/v1/internal/events`. `internal/forwarder/category.go`'s `category` map assigns
-each of execution_service's 5 routed event types to one of 3 categories, and
-`Target.forward` builds `/events/<category>` for anything in that map:
+The `execution` target receives the event types below on a per-category path. Every other target, and every event type absent from this table, receives `/api/v1/internal/events`.
 
-| Event type | Category / subpath |
-| --- | --- |
-| `delegation.started`, `delegation.ended` | `delegation` → `/api/v1/internal/events/delegation` |
-| `user.deleted`, `user.availability.changed` | `user-profile` → `/api/v1/internal/events/user-profile` |
-| `tenant.state.changed` | `tenant` → `/api/v1/internal/events/tenant` |
+| Event type | Category | Path |
+| --- | --- | --- |
+| `DelegationStarted` | `delegation` | `/api/v1/internal/events/delegation` |
+| `DelegationEnded` | `delegation` | `/api/v1/internal/events/delegation` |
+| `UserDeleted` | `user-profile` | `/api/v1/internal/events/user-profile` |
+| `UserAvailabilityChanged` | `user-profile` | `/api/v1/internal/events/user-profile` |
+| `MembershipRevoked` | `user-profile` | `/api/v1/internal/events/user-profile` |
+| `TenantStateChanged` | `tenant` | `/api/v1/internal/events/tenant` |
+| `TenantMembershipsPurged` | `tenant` | `/api/v1/internal/events/tenant` |
+| `WorkflowTaskCreated` | `workflow-task` | `/api/v1/internal/events/workflow-task` |
 
-Every other target (`definition`, `workflow-stream-gateway`) and any event
-type absent from this map still gets the legacy `/api/v1/internal/events` path —
-execution_service keeps that route registered as an unconditional catch-all,
-so an unmapped type is never dropped. **This map is Go code, not
-`topology.yaml`** — deliberately not config-driven, because a mismatched edit
-here (a category with no matching subpath registered on the execution_service
-side) would 404 instead of falling back safely. Adding or changing a category
-means updating both this map and execution_service's
-`RegisterInternalEventsRoutes` in the same change.
+The category map lives in code, not in the topology file: a category with no matching route registered on the Execution Service answers 404, so adding or changing one means changing the map and the Execution Service's internal event routes in the same change.
 
 ## Alerting signals
 

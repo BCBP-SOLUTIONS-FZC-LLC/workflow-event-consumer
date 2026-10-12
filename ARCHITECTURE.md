@@ -96,8 +96,8 @@ Logs, metrics and traces go through `platform-gincommon`. The service metrics ar
 Every event this bridge is known to carry belongs to exactly one downstream
 service — never both (see [docs/runbook.md](docs/runbook.md)'s catalogue
 table). `config/topology.yaml`'s `routes` map encodes this directly — the
-common case (`delegation.started` → execution only,
-`department.membership.revoked` → definition only, etc.) sends each event to
+common case (`DelegationStarted` → execution only,
+`DepartmentMembershipRevoked` → definition only, etc.) sends each event to
 exactly the target that needs it, not to a target that will only discard it.
 `internal/consumer.Router` (built from that map at startup by `deps.go`) is
 a thin lookup — the catalogue itself lives entirely in the YAML file, not in
