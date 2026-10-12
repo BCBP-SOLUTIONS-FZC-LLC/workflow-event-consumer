@@ -16,6 +16,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - The forward duration metric is recorded, and forwarded requests carry the trace context.
 - Alerts for failing messages, dead-lettered messages and handler panics.
 - Tests that fail when the chart's topology or `deploy/aws/policy.json` differs from `config/topology.example.yaml`.
+- `make arch-lint` with a `.go-arch-lint.yml` that fixes the import direction between `internal` packages, run by `make check` and the quality workflow.
 - A release workflow (changelog gate, image build, Cosign signature, GitHub Release), a changelog check, `.editorconfig`, `helm-lint`, `lint-workflows`, a Dockerfile digest pin check, VERSIONING.
 - Initial implementation: stateless SNS → SQS → HTTP bridge subscribing to
   `membership`, `user`, and `template` SQS queues and forwarding each event

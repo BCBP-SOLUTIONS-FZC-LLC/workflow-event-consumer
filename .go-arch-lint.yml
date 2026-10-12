@@ -1,0 +1,49 @@
+version: 2
+workdir: .
+
+exclude:
+  - ".claude"
+  - "vendor"
+  - "test"
+
+excludeFiles:
+  - "^.*_test\\.go$"
+
+allow:
+  depOnAnyVendor: true
+
+components:
+  config:
+    in: "internal/config"
+  observability:
+    in: "internal/observability/**"
+  forwarder:
+    in: "internal/forwarder"
+  consumer:
+    in: "internal/consumer"
+  topology:
+    in: "internal/topology"
+  cmd:
+    in: "cmd/**"
+
+deps:
+  observability:
+    mayDependOn:
+      - observability
+  forwarder:
+    mayDependOn:
+      - observability
+  consumer:
+    mayDependOn:
+      - forwarder
+      - observability
+  topology:
+    mayDependOn:
+      - forwarder
+  cmd:
+    mayDependOn:
+      - config
+      - observability
+      - forwarder
+      - consumer
+      - topology

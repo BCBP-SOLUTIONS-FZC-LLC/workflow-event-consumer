@@ -67,6 +67,9 @@ jobs:
       - name: Lint
         run: make lint
 
+      - name: Arch-lint
+        run: make arch-lint
+
       - name: Observability standard lint
         run: make metrics-lint
 

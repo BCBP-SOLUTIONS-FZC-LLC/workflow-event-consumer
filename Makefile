@@ -11,6 +11,7 @@ HADOLINT_VERSION    := v2.12.0
 TRIVY_VERSION       := 0.71.2
 KUBECONFORM_VERSION := 0.8.0
 ACTIONLINT_VERSION  := v1.7.12
+GOARCHLINT_VERSION  := v1.15.0
 
 TESTCONTAINERS_LOCALSTACK_IMAGE := localstack/localstack:3
 
@@ -21,6 +22,7 @@ MODULE       := github.com/BCBP-SOLUTIONS-FZC-LLC/workflow-events-consumer
 
 GOLANGCI    := $(TOOLS_DIR)/golangci-lint
 GOVULNCHECK := $(TOOLS_DIR)/govulncheck
+GOARCHLINT  := $(TOOLS_DIR)/go-arch-lint
 HADOLINT    := $(TOOLS_DIR)/hadolint
 TRIVY       := $(TOOLS_DIR)/trivy
 KUBECONFORM := $(TOOLS_DIR)/kubeconform
@@ -36,7 +38,7 @@ COVER_THRESHOLD := 90
 
 .PHONY: metrics-lint metrics-inventory helm-lint lint-workflows pin-base-images all tools tools-integration setup install-hooks build test test-integration test-ci \
         merge-coverage cover cover-func cover-html cover-check \
-        tidy fmt-check fix check lint lint-fix vuln \
+        tidy fmt-check fix check lint lint-fix arch-lint vuln \
         docker-build docker-build-mock-downstream docker-lint docker-trivy docker-check \
         clean help
 
@@ -60,6 +62,7 @@ tools:
 	@curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/HEAD/install.sh \
 		| sh -s -- -b $(PWD)/$(TOOLS_DIR) $(GOLANGCI_VERSION)
 	GOBIN=$(PWD)/$(TOOLS_DIR) go install golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION)
+	GOBIN=$(PWD)/$(TOOLS_DIR) go install github.com/fe3dback/go-arch-lint@$(GOARCHLINT_VERSION)
 	@OS=$$(uname -s); ARCH=$$(uname -m); \
 	if [ "$$OS" = "Darwin" ]; then \
 	    if command -v brew >/dev/null 2>&1; then \
@@ -176,6 +179,7 @@ check:
 	@$(MAKE) fmt-check
 	$(GOLANGCI) run --build-tags=integration ./...
 	go vet ./cmd/... ./internal/...
+	@$(MAKE) arch-lint
 	@$(MAKE) metrics-lint
 	@$(MAKE) helm-lint
 	@$(MAKE) cover-check
@@ -184,6 +188,10 @@ check:
 ## lint: Run golangci-lint (read-only), including integration-tagged files
 lint:
 	$(GOLANGCI) run --build-tags=integration ./...
+
+## arch-lint: Enforce the import-direction rules between internal packages
+arch-lint:
+	$(GOARCHLINT) check --project-path .
 
 ## lint-fix: Run golangci-lint with auto-fix
 lint-fix:

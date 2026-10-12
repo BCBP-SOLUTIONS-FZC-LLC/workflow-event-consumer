@@ -104,14 +104,14 @@ docker compose up
 make test              # unit tests, using test/mocks' mock downstreams
 make test-integration  # requires Docker; real LocalStack SNS and SQS
 make test-ci           # both suites, merged coverage
-make check             # format, lint, vet, the observability standard, chart lint and the coverage gate
+make check             # format, lint, vet, import rules, the observability standard, chart lint and the coverage gate
 ```
 
 `test/mocks` provides a reusable mock downstream (`mocks.Downstream`) used by the unit and integration tests; `cmd/mock-downstream` is a standalone binary used only by `docker compose up`.
 
 | Command | What it does |
 | --- | --- |
-| `make lint` / `make vuln` | golangci-lint, dependency vulnerabilities |
+| `make lint` / `make arch-lint` / `make vuln` | golangci-lint, import-direction rules, dependency vulnerabilities |
 | `make metrics-lint` / `make metrics-inventory` | Observability standard, regenerate the inventory |
 | `make helm-lint` / `make lint-workflows` | Chart validation, workflow lint |
 | `make docker-check` / `make pin-base-images` | Dockerfile lint and scan, digest pins |

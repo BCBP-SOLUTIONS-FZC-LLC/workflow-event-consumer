@@ -215,7 +215,7 @@ sequenceDiagram
 `internal/consumer`; `internal/consumer` depends on both. `cmd/event-consumer`
 is the only composition root and is the only package that constructs
 concrete SQS consumers, HTTP targets, or reads configuration. Nothing in
-`internal/` imports `cmd/`.
+`internal/` imports `cmd/`. `make arch-lint` enforces these directions; `internal/topology` depends on `internal/forwarder` only.
 
 For local development and testing instructions, see [README.md](README.md).
 For operational procedures (alerting, DLQ replay, adding a new event type),
