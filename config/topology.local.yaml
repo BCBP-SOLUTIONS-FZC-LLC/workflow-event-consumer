@@ -13,6 +13,8 @@ queues:
     url: http://localstack:4566/000000000000/membership-workflow-q
   - name: user
     url: http://localstack:4566/000000000000/user-wf-q
+  - name: delegation
+    url: http://localstack:4566/000000000000/delegation-workflow-q
 
 routes:
   DelegationStarted: [execution]
@@ -23,6 +25,8 @@ routes:
   DepartmentMembershipRevoked: [definition]
   MembershipRevoked: [definition, execution]
   TenantMembershipsPurged: [execution]
+  DelegationReviewRequested: []
+  DelegationEscalationRequested: []
   TenderAssigneeOverridden: []
   DepartmentMembershipGranted: []
   DepartmentMembershipLevelChanged: []

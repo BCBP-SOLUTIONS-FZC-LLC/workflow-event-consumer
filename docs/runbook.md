@@ -25,6 +25,8 @@ The `routes` map of [`config/topology.example.yaml`](../config/topology.example.
 | `WorkflowInstanceCancelled` | workflow-stream-gateway |
 | `WorkflowInstanceTerminated` | workflow-stream-gateway |
 | `WorkflowInstanceFinished` | workflow-stream-gateway |
+| `DelegationReviewRequested` | dropped |
+| `DelegationEscalationRequested` | dropped |
 | `TenderAssigneeOverridden` | dropped |
 | `DepartmentMembershipGranted` | dropped |
 | `DepartmentMembershipLevelChanged` | dropped |

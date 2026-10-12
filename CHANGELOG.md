@@ -17,6 +17,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Alerts for failing messages, dead-lettered messages and handler panics.
 - Tests that fail when the chart's topology or `deploy/aws/policy.json` differs from `config/topology.example.yaml`.
 - `make arch-lint` with a `.go-arch-lint.yml` that fixes the import direction between `internal` packages, run by `make check` and the quality workflow.
+- A low-level design (`docs/lld/workflow_event_consumer.md`) with the queue and event inventory across IAM and the Workflow Engine, and `api/asyncapi.yaml`, whose channels, event types and per-event targets tests tie to the topology example.
+- A queue for `delegation-workflow-q` (the `iam.delegation.events` topic) in the topology, chart, IAM policy and local stack, with explicit drops for `DelegationReviewRequested` and `DelegationEscalationRequested`.
 - A permanent forward failure (`400`, `413` or `422` from every failing target) sends the original message to the queue's dead-letter queue after one delivery, through the `platform-events` DLQ publisher; transient and mixed failures keep the retry path. The IAM policy gains send and attribute-read on each `<queue>-dlq`, and a test ties it to the topology.
 - The consumer forwards the original message body, so a schema-encoded event reaches its target with its payload and `dataschema` intact; it decodes nothing itself. A type outside the Execution Service's category map is not forwarded to it (it has no route for it) and is counted with result `skipped`.
 - Tests that fail when the runbook's route table or category table differs from the topology example or the category map.

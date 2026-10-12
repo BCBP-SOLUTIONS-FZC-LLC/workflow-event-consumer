@@ -37,6 +37,8 @@ queues:
     url: https://sqs.us-east-1.amazonaws.com/000000000000/membership-workflow-q
   - name: user
     url: https://sqs.us-east-1.amazonaws.com/000000000000/user-wf-q
+  - name: delegation
+    url: https://sqs.us-east-1.amazonaws.com/000000000000/delegation-workflow-q
   - name: dashboard
     url: https://sqs.us-east-1.amazonaws.com/000000000000/wf-workflow-dash-q
 
@@ -91,6 +93,12 @@ routes:
   WorkflowInstanceCancelled: [workflow-stream-gateway]
   WorkflowInstanceTerminated: [workflow-stream-gateway]
   WorkflowInstanceFinished: [workflow-stream-gateway]
+
+  # IAM's delegation service publishes four types to iam.delegation.events,
+  # delivered to delegation-workflow-q. Execution acts on Started and Ended;
+  # no Workflow service consumes the review and escalation requests.
+  DelegationReviewRequested: []
+  DelegationEscalationRequested: []
 
   # Delivered by the membership-workflow-q filter policy, deliberately not consumed.
   # TenderAssigneeOverridden: per IAM's topology its only consumers are Audit

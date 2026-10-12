@@ -13,6 +13,7 @@
       "Resource": [
         "arn:aws:sqs:*:*:membership-workflow-q",
         "arn:aws:sqs:*:*:user-wf-q",
+        "arn:aws:sqs:*:*:delegation-workflow-q",
         "arn:aws:sqs:*:*:wf-workflow-dash-q"
       ]
     },
@@ -27,6 +28,7 @@
       "Resource": [
         "arn:aws:sqs:*:*:membership-workflow-q-dlq",
         "arn:aws:sqs:*:*:user-wf-q-dlq",
+        "arn:aws:sqs:*:*:delegation-workflow-q-dlq",
         "arn:aws:sqs:*:*:wf-workflow-dash-q-dlq"
       ]
     }

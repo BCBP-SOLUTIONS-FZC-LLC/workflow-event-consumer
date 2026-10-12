@@ -40,7 +40,7 @@ Without a shared bridge, every service would run its own SQS consumers, retry po
 - [CI](#ci), [Versioning and releases](#versioning-and-releases)
 - [Out of scope](#out-of-scope) and [See also](#see-also)
 
-> **Architecture** — [ARCHITECTURE.md](ARCHITECTURE.md). **On-call** — [docs/runbook.md](docs/runbook.md). **Contributing** — [CONTRIBUTING.md](CONTRIBUTING.md).
+> **Design** — [docs/lld/workflow_event_consumer.md](docs/lld/workflow_event_consumer.md), [api/asyncapi.yaml](api/asyncapi.yaml). **Architecture** — [ARCHITECTURE.md](ARCHITECTURE.md). **On-call** — [docs/runbook.md](docs/runbook.md). **Contributing** — [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ---
 
@@ -161,4 +161,4 @@ This repository carries no `LICENSE` file: it is private and proprietary to BCBP
 
 ## See also
 
-- [ARCHITECTURE.md](ARCHITECTURE.md) · [CONTRIBUTING.md](CONTRIBUTING.md) · [VERSIONING.md](VERSIONING.md) · [CHANGELOG.md](CHANGELOG.md) · [docs/runbook.md](docs/runbook.md)
+- [LLD](docs/lld/workflow_event_consumer.md) · [AsyncAPI](api/asyncapi.yaml) · [ARCHITECTURE.md](ARCHITECTURE.md) · [CONTRIBUTING.md](CONTRIBUTING.md) · [VERSIONING.md](VERSIONING.md) · [CHANGELOG.md](CHANGELOG.md) · [docs/runbook.md](docs/runbook.md)

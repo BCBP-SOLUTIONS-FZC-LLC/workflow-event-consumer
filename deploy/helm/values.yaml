@@ -73,6 +73,8 @@ topology:
       url: https://sqs.us-east-1.amazonaws.com/000000000000/membership-workflow-q
     - name: user
       url: https://sqs.us-east-1.amazonaws.com/000000000000/user-wf-q
+    - name: delegation
+      url: https://sqs.us-east-1.amazonaws.com/000000000000/delegation-workflow-q
     - name: dashboard
       url: https://sqs.us-east-1.amazonaws.com/000000000000/wf-workflow-dash-q
   routes:
@@ -95,6 +97,8 @@ topology:
     WorkflowInstanceCancelled: [workflow-stream-gateway]
     WorkflowInstanceTerminated: [workflow-stream-gateway]
     WorkflowInstanceFinished: [workflow-stream-gateway]
+    DelegationReviewRequested: []
+    DelegationEscalationRequested: []
     TenderAssigneeOverridden: []
     DepartmentMembershipGranted: []
     DepartmentMembershipLevelChanged: []
