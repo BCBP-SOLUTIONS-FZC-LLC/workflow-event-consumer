@@ -1,6 +1,9 @@
 package consumer
 
 import (
+	"os"
+	"regexp"
+	"strconv"
 	"testing"
 	"time"
 
@@ -45,4 +48,15 @@ func TestBuild_RequiresADeadLetterPublisher(t *testing.T) {
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "dead-letter publisher")
+}
+
+func TestReceiveThresholdIsBelowTheRedriveCountOfTheLocalQueues(t *testing.T) {
+	raw, err := os.ReadFile("../../scripts/init-localstack.sh")
+	require.NoError(t, err)
+
+	m := regexp.MustCompile(`maxReceiveCount\\?":\\?"(\d+)`).FindStringSubmatch(string(raw))
+	require.Len(t, m, 2, "the local stack sets a redrive count")
+	redrive, err := strconv.Atoi(m[1])
+	require.NoError(t, err)
+	assert.Less(t, MaxReceiveCount, redrive, "SQS would move the message before the consumer dead-letters it")
 }

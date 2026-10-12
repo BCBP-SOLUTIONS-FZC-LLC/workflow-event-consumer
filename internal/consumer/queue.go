@@ -21,7 +21,7 @@ type QueueSpec struct {
 	URL  string
 }
 
-const maxReceiveCount = 4
+const MaxReceiveCount = 4
 
 type Options struct {
 	DeadLetters        events.DLQPublisher
@@ -57,7 +57,7 @@ func Build(spec QueueSpec, opts Options, fwd *forwarder.Forwarder, router Router
 		events.WithQueueDepthMetrics(opts.QueueDepthInterval),
 		events.WithConsumerCodec(events.NoopCodec{}),
 		events.WithDLQForwarding(opts.DeadLetters),
-		events.WithMaxReceiveCount(maxReceiveCount),
+		events.WithMaxReceiveCount(MaxReceiveCount),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("new sqs consumer for queue %s: %w", spec.Name, err)

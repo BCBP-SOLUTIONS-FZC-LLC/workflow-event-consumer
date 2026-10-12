@@ -26,6 +26,7 @@ spec:
         checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
         {{- end }}
     spec:
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
       serviceAccountName: {{ include "workflow-events-consumer.serviceAccountName" . }}
       securityContext:
         runAsNonRoot: true

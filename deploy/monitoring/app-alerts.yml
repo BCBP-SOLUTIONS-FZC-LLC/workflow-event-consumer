@@ -29,7 +29,7 @@ groups:
             CONSUMER_CONCURRENCY.
 
       - alert: WorkflowEventsConsumerDown
-        expr: up{job="workflow-events-consumer"} == 0
+        expr: up{job=~".*workflow-events-consumer"} == 0
         for: 5m
         labels:
           severity: critical
@@ -39,7 +39,7 @@ groups:
 
       - alert: WorkflowEventsConsumerMessagesFailing
         expr: |
-          sum by (queue, reason) (rate(platform_messages_failed_total{job="workflow-events-consumer"}[5m])) > 0
+          sum by (queue, reason) (rate(platform_messages_failed_total{job=~".*workflow-events-consumer"}[5m])) > 0
         for: 10m
         labels:
           severity: warning
@@ -52,7 +52,7 @@ groups:
 
       - alert: WorkflowEventsConsumerDeadLettered
         expr: |
-          sum by (queue) (increase(platform_dlq_messages_total{job="workflow-events-consumer", operation="consume"}[5m])) > 0
+          sum by (queue) (increase(platform_dlq_messages_total{job=~".*workflow-events-consumer", operation="consume"}[5m])) > 0
         labels:
           severity: page
         annotations:
@@ -60,7 +60,7 @@ groups:
           description: "A message exhausted its deliveries or was malformed and moved to the dead-letter queue. See docs/runbook.md."
 
       - alert: WorkflowEventsConsumerHTTPPanic
-        expr: increase(platform_http_panics_total{job="workflow-events-consumer"}[5m]) > 0
+        expr: increase(platform_http_panics_total{job=~".*workflow-events-consumer"}[5m]) > 0
         labels:
           severity: critical
         annotations:
@@ -89,3 +89,16 @@ groups:
         annotations:
           summary: "workflow-events-consumer backlog on queue {{ $labels.queue }}"
           description: "Queue \"{{ $labels.queue }}\" has held more than 1000 messages for 15m. Check target health and CONSUMER_CONCURRENCY."
+
+      - alert: WorkflowEventsConsumerDeadLetterBacklog
+        expr: |
+          max by (queue) (platform_dlq_depth) > 0
+        for: 5m
+        labels:
+          severity: page
+        annotations:
+          summary: "workflow-events-consumer dead-letter queue of {{ $labels.queue }} is not empty"
+          description: >
+            The dead-letter queue behind "{{ $labels.queue }}" holds messages. This also covers
+            messages SQS moved itself because the queue's redrive count is at or below the
+            consumer's receive threshold. See docs/runbook.md.

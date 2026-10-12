@@ -147,3 +147,31 @@ func TestReleaseBuilderCacheExportsOnlyTheFinalStageLayers(t *testing.T) {
 
 	assert.NotContains(t, string(raw), "mode=max", "mode=max exports every builder layer to the registry")
 }
+
+func TestChartGivesPodsTimeToDrain(t *testing.T) {
+	raw, err := os.ReadFile("../../deploy/helm/values.yaml")
+	require.NoError(t, err)
+	var values struct {
+		TerminationGracePeriodSeconds int `yaml:"terminationGracePeriodSeconds"`
+		ServiceMonitor                struct {
+			Enabled bool `yaml:"enabled"`
+		} `yaml:"serviceMonitor"`
+	}
+	require.NoError(t, yaml.Unmarshal(raw, &values))
+
+	assert.GreaterOrEqual(t, values.TerminationGracePeriodSeconds, 70, "drain timeout 30s plus the handler deadline 20s, with margin")
+	assert.True(t, values.ServiceMonitor.Enabled, "alerts need the scrape")
+
+	deployment, err := os.ReadFile("../../deploy/helm/templates/deployment.yaml")
+	require.NoError(t, err)
+	assert.Contains(t, string(deployment), ".Values.terminationGracePeriodSeconds")
+}
+
+func TestAlertsSelectTheChartsJobName(t *testing.T) {
+	raw, err := os.ReadFile("../../deploy/monitoring/app-alerts.yml")
+	require.NoError(t, err)
+	alerts := string(raw)
+
+	assert.NotRegexp(t, `job="`, alerts, "the ServiceMonitor's job is <release>-workflow-events-consumer, which an exact match never selects")
+	assert.Contains(t, alerts, "WorkflowEventsConsumerDeadLetterBacklog")
+}

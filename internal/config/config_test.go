@@ -30,6 +30,9 @@ func TestLoad_Defaults(t *testing.T) {
 	if cfg.HealthPort != 8082 {
 		t.Errorf("HealthPort = %d, want 8082", cfg.HealthPort)
 	}
+	if cfg.RetryBackoffBase != 30*time.Second {
+		t.Errorf("RetryBackoffBase = %v, want 30s", cfg.RetryBackoffBase)
+	}
 	if cfg.VisibilityTimeout != 30*time.Second {
 		t.Errorf("VisibilityTimeout = %v, want 30s", cfg.VisibilityTimeout)
 	}
@@ -117,7 +120,7 @@ func TestLoad_ConsumerOptionDefaults(t *testing.T) {
 	if cfg.OTELServiceName != "workflow-events-consumer" {
 		t.Errorf("OTELServiceName = %q", cfg.OTELServiceName)
 	}
-	if cfg.HandlerTimeout != 20*time.Second || cfg.RetryBackoffBase != 5*time.Second || cfg.RetryBackoffMax != 5*time.Minute || cfg.QueueDepthInterval != 30*time.Second {
+	if cfg.HandlerTimeout != 20*time.Second || cfg.RetryBackoffBase != 30*time.Second || cfg.RetryBackoffMax != 5*time.Minute || cfg.QueueDepthInterval != 30*time.Second {
 		t.Errorf("defaults = %v %v %v %v", cfg.HandlerTimeout, cfg.RetryBackoffBase, cfg.RetryBackoffMax, cfg.QueueDepthInterval)
 	}
 }

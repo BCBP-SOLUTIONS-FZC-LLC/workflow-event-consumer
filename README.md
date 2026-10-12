@@ -66,7 +66,7 @@ its own token.
 | `DRAIN_TIMEOUT` | Graceful-shutdown grace period per consumer (default `30s`) |
 | `FORWARD_TIMEOUT` | Per-target HTTP client timeout (default `5s`) |
 | `HANDLER_TIMEOUT` | Per-message deadline (default `20s`); must not exceed `VISIBILITY_TIMEOUT`, and `FORWARD_TIMEOUT` must not exceed it |
-| `RETRY_BACKOFF_BASE`, `RETRY_BACKOFF_MAX` | Redelivery backoff after a failed message (defaults `5s`, `5m`) |
+| `RETRY_BACKOFF_BASE`, `RETRY_BACKOFF_MAX` | Redelivery backoff after a failed message (defaults `30s`, `5m`); with the receive threshold of 4 a message is retried over about 7 minutes before it is dead-lettered |
 | `QUEUE_DEPTH_INTERVAL` | Cadence of the queue-depth metric (default `30s`) |
 | `OTEL_SERVICE_NAME`, `OTEL_EXPORTER_OTLP_ENDPOINT` | Trace and metric identity; export is off when the endpoint is unset or `none` |
 | *(one per target, named in topology.yaml's `tokenEnv`)* | e.g. `EXECUTION_SERVICE_TOKEN`, `DEFINITION_SERVICE_TOKEN` |

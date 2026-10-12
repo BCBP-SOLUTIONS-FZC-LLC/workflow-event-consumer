@@ -74,7 +74,7 @@ func Load() (*Config, error) {
 		DrainTimeout:        envDuration("DRAIN_TIMEOUT", 30*time.Second),
 		ForwardTimeout:      envDuration("FORWARD_TIMEOUT", 5*time.Second),
 		HandlerTimeout:      envDuration("HANDLER_TIMEOUT", 20*time.Second),
-		RetryBackoffBase:    envDuration("RETRY_BACKOFF_BASE", 5*time.Second),
+		RetryBackoffBase:    envDuration("RETRY_BACKOFF_BASE", 30*time.Second),
 		RetryBackoffMax:     envDuration("RETRY_BACKOFF_MAX", 5*time.Minute),
 		QueueDepthInterval:  envDuration("QUEUE_DEPTH_INTERVAL", 30*time.Second),
 

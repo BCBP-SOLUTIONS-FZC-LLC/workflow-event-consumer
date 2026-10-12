@@ -27,6 +27,8 @@ podDisruptionBudget:
 service:
   port: 8082
 
+terminationGracePeriodSeconds: 90
+
 serviceAccount:
   create: true
   name: ""
@@ -118,6 +120,6 @@ networkPolicy:
   additionalEgressRules: []
 
 serviceMonitor:
-  enabled: false
+  enabled: true
   namespace: ""
   interval: 30s
