@@ -48,16 +48,35 @@ func TestTargetNames(t *testing.T) {
 	assert.Equal(t, []string{"execution", "definition"}, testConfig().TargetNames())
 }
 
-func TestResolveTargets_RequiresHTTPSOutsideDevAndLocal(t *testing.T) {
+func TestResolveTargets_OutsideDevAndLocalTakesHTTPSOrHTTPWithAPort(t *testing.T) {
+	token := func(string) string { return "tok" }
+	cases := []struct {
+		addr    string
+		wantErr bool
+	}{
+		{"https://execution.internal", false},
+		{"https://execution.internal:8443", false},
+		{"http://workflow-execution-service-api:8080", false},
+		{"http://execution.internal", true},
+		{"ftp://execution.internal:21", true},
+		{"execution.internal:8080", true},
+		{"", true},
+	}
+	for _, tc := range cases {
+		cfg := testConfig()
+		cfg.Targets[0].Addr = tc.addr
+		for _, env := range []string{"test", "staging", "prod"} {
+			_, err := cfg.ResolveTargets(env, token, time.Second)
+			if tc.wantErr {
+				require.Error(t, err, "%q in %s", tc.addr, env)
+				assert.Contains(t, err.Error(), "addr", env)
+			} else {
+				assert.NoError(t, err, "%q in %s", tc.addr, env)
+			}
+		}
+	}
 	cfg := testConfig()
 	cfg.Targets[0].Addr = "http://execution.internal"
-	token := func(string) string { return "tok" }
-
-	for _, env := range []string{"test", "staging", "prod"} {
-		_, err := cfg.ResolveTargets(env, token, time.Second)
-		require.Error(t, err, env)
-		assert.Contains(t, err.Error(), "https", env)
-	}
 	for _, env := range []string{"dev", "local"} {
 		_, err := cfg.ResolveTargets(env, token, time.Second)
 		assert.NoError(t, err, env)

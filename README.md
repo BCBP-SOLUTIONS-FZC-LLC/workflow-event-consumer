@@ -57,8 +57,8 @@ its own token.
 
 | Env var | Purpose |
 | --- | --- |
-| `APP_ENV` | Required. One of `local`, `dev`, `test`, `staging`, `prod`; any other value fails startup. Outside `dev` and `local` every target address must be https and every target token env var must be set |
-| `HEALTH_PORT` | `/healthz` and `/metrics` listen port (default `8082`) |
+| `APP_ENV` | Required. One of `local`, `dev`, `test`, `staging`, `prod`; any other value fails startup. Outside `dev` and `local` every target address must be https, or http naming a port (the in-cluster services serve plain HTTP on 8080), and every target token env var must be set |
+| `HEALTH_PORT` | `/healthz`, `/readyz` and `/metrics` listen port (default `8082`) |
 | `TOPOLOGY_CONFIG_PATH` | Path to the topology YAML file (default `config/topology.yaml`) |
 | `AWS_REGION`, `AWS_ENDPOINT_URL` | AWS SDK region (required) and LocalStack override |
 | `CONSUMER_CONCURRENCY` | Concurrent handler goroutines per queue (default `10`) |
@@ -68,7 +68,7 @@ its own token.
 | `HANDLER_TIMEOUT` | Per-message deadline (default `20s`); must not exceed `VISIBILITY_TIMEOUT`, and `FORWARD_TIMEOUT` must not exceed it |
 | `RETRY_BACKOFF_BASE`, `RETRY_BACKOFF_MAX` | Redelivery backoff after a failed message (defaults `30s`, `5m`); with the receive threshold of 4 a message is retried over about 7 minutes before it is dead-lettered |
 | `QUEUE_DEPTH_INTERVAL` | Cadence of the queue-depth metric (default `30s`) |
-| `OTEL_SERVICE_NAME`, `OTEL_EXPORTER_OTLP_ENDPOINT` | Trace and metric identity; export is off when the endpoint is unset or `none` |
+| `OTEL_SERVICE_NAME`, `OTEL_EXPORTER_OTLP_ENDPOINT` | Trace and metric identity; export is off when the endpoint is unset or `none`. The NetworkPolicy allows egress on 443 and the target ports only, so a collector on another port (the usual 4317) needs an entry in `networkPolicy.additionalEgressRules` |
 | *(one per target, named in topology.yaml's `tokenEnv`)* | e.g. `EXECUTION_SERVICE_TOKEN`, `DEFINITION_SERVICE_TOKEN` |
 
 Each downstream service mints and rotates its own `INTERNAL_API_TOKEN`
@@ -137,7 +137,7 @@ Every series carries `domain` (`workflow`), `service` (`workflow-events-consumer
 
 - Each target has its own token, sent as `x-internal-token`; outside dev and local startup fails if any target's token is missing.
 - The IAM role can only consume SQS; it never publishes and never touches S3, KMS or Glue.
-- The health server serves `/healthz` and `/metrics` only, with read, write and idle timeouts. `/healthz` answers 503 when no SQS receive has succeeded for two minutes, so a consumer that cannot receive is taken out of service and restarted.
+- The health server serves `/healthz`, `/readyz` and `/metrics` only, with read, write and idle timeouts. `/healthz` is liveness and answers while the process serves. `/readyz` answers 503 until the first SQS receive has succeeded and again when none has succeeded for two minutes, so a consumer that cannot receive is taken out of service; the chart's liveness probe does not follow it, since a restart cannot fix an SQS or STS outage.
 - Container: distroless, non-root, read-only root filesystem, all capabilities dropped.
 
 ---

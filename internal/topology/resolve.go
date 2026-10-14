@@ -1,8 +1,9 @@
 package topology
 
 import (
+	"errors"
 	"fmt"
-	"strings"
+	"net/url"
 	"time"
 
 	"github.com/BCBP-SOLUTIONS-FZC-LLC/workflow-events-consumer/internal/forwarder"
@@ -16,8 +17,8 @@ func (c Config) ResolveTargets(appEnv string, tokenLookup func(string) string, t
 			if token == "" {
 				return nil, fmt.Errorf("topology: target %q: env var %s is required outside dev and local", t.Name, t.TokenEnv)
 			}
-			if !strings.HasPrefix(t.Addr, "https://") {
-				return nil, fmt.Errorf("topology: target %q: addr must be https outside dev and local", t.Name)
+			if err := checkTargetAddr(t.Addr); err != nil {
+				return nil, fmt.Errorf("topology: target %q: addr %w outside dev and local", t.Name, err)
 			}
 		}
 		targets = append(targets, forwarder.NewTarget(t.Name, t.Addr, t.PathPrefix, token, timeout))
@@ -31,4 +32,21 @@ func (c Config) TargetNames() []string {
 		names[i] = t.Name
 	}
 	return names
+}
+
+func checkTargetAddr(addr string) error {
+	u, err := url.Parse(addr)
+	if err != nil || u.Host == "" {
+		return errors.New("must be an http or https URL")
+	}
+	switch u.Scheme {
+	case "https":
+		return nil
+	case "http":
+		if u.Port() == "" {
+			return errors.New("must name a port when it is http")
+		}
+		return nil
+	}
+	return errors.New("must be an http or https URL")
 }

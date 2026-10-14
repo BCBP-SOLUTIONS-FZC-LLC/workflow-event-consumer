@@ -36,7 +36,7 @@ func TestStandard_LibrariesShareRegistryCollectors(t *testing.T) {
 	observability.HandlerDurationSeconds.WithLabelValues("membership", "ok").Observe(0.1)
 
 	srv := newHealthServer(":0", ginCfg, newReceiveWatch(&fakeGatherer{successes: 1}, time.Hour, time.Now))
-	for _, path := range []string{"/healthz", "/metrics"} {
+	for _, path := range []string{"/healthz", "/readyz", "/metrics"} {
 		rec := httptest.NewRecorder()
 		srv.Handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, path, nil))
 		require.Equal(t, http.StatusOK, rec.Code, path)

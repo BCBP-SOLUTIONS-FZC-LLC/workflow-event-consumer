@@ -65,7 +65,7 @@ The category map lives in code, not in the topology file: a category with no mat
 
 ## The pod is not ready and nothing is consumed
 
-`/healthz` answers 503 after two minutes without a successful SQS receive. Check the `WorkflowEventsConsumerReceiveFailing` alert and the pod's logs for `receive message failed`: a denied `sqs:ReceiveMessage`, a queue URL that does not exist, or an `AWS_REGION` that does not match the queues. Fix the role, the topology or the region; the pod becomes ready on its own once a receive succeeds. A pod is not ready until its first receive has succeeded. The receive metric has no queue label, so one queue with a wrong URL among healthy ones keeps the pod ready: the `WorkflowEventsConsumerReceiveFailing` alert and the `receive message failed` log line name the failing queue.
+`/readyz` answers 503 after two minutes without a successful SQS receive (`/healthz`, the liveness probe, keeps answering, so a shared SQS outage does not restart the pods). Check the `WorkflowEventsConsumerReceiveFailing` alert and the pod's logs for `receive message failed`: a denied `sqs:ReceiveMessage`, a queue URL that does not exist, or an `AWS_REGION` that does not match the queues. Fix the role, the topology or the region; the pod becomes ready on its own once a receive succeeds. A pod is not ready until its first receive has succeeded. The receive metric has no queue label, so one queue with a wrong URL among healthy ones keeps the pod ready: the `WorkflowEventsConsumerReceiveFailing` alert and the `receive message failed` log line name the failing queue.
 
 ## A message is stuck redelivering
 

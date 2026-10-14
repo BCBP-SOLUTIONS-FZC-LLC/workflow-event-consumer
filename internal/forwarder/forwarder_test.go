@@ -4,10 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"sort"
+	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -347,4 +350,25 @@ func TestForward_AnUnknownTargetFailsBeforeAnyTargetIsCalled(t *testing.T) {
 func TestCategorised(t *testing.T) {
 	assert.True(t, Categorised("UserDeleted"))
 	assert.False(t, Categorised("SomeFutureEventType"))
+}
+
+func TestForward_ReusesTheConnectionAfterAnAnswerWithABody(t *testing.T) {
+	var connections atomic.Int32
+	srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"status":"ok","detail":"` + strings.Repeat("x", 512) + `"}`))
+	}))
+	srv.Config.ConnState = func(_ net.Conn, state http.ConnState) {
+		if state == http.StateNew {
+			connections.Add(1)
+		}
+	}
+	srv.Start()
+	defer srv.Close()
+	fwd := New(NewTarget("a", srv.URL, "", "token", 5*time.Second))
+
+	for i := 0; i < 3; i++ {
+		require.NoError(t, fwd.Forward(context.Background(), "membership", []string{"a"}, "test.event", []byte(`{}`)))
+	}
+
+	assert.EqualValues(t, 1, connections.Load(), "an unread body costs a new connection, and a TLS handshake, for every forward")
 }

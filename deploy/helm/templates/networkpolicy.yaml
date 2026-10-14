@@ -39,7 +39,7 @@ spec:
           protocol: UDP
         - port: 53
           protocol: TCP
-    # HTTPS — SQS API calls and forwarding to execution_service/definition_service.
+    # HTTPS — SQS API calls (and any https forward target).
     # These targets' addrs are config-driven (config/topology.yaml), so this
     # policy can't scope by hostname; narrow further with additionalEgressRules
     # (a namespaceSelector/ipBlock) if the two downstream services' network
@@ -50,6 +50,14 @@ spec:
       ports:
         - port: 443
           protocol: TCP
+    # The forward targets are in-cluster services on plain HTTP (their `addr` names a port).
+    - to:
+        - namespaceSelector: {}
+      ports:
+        {{- range .Values.networkPolicy.targetPorts }}
+        - port: {{ . }}
+          protocol: TCP
+        {{- end }}
     {{- with .Values.networkPolicy.additionalEgressRules }}
     {{- toYaml . | nindent 4 }}
     {{- end }}

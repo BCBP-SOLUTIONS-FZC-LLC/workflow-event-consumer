@@ -59,15 +59,15 @@ topology:
   version: 1
   targets:
     - name: execution
-      addr: https://execution-service.internal
+      addr: http://workflow-execution-service-api:8080
       tokenEnv: EXECUTION_SERVICE_TOKEN
       pathPrefix: /api/v1/internal/events
     - name: definition
-      addr: https://definition-service.internal
+      addr: http://workflow-definition-service:8080
       tokenEnv: DEFINITION_SERVICE_TOKEN
       pathPrefix: /api/v1/internal/events
     - name: workflow-stream-gateway
-      addr: https://workflow-stream-gateway.internal
+      addr: http://workflow-stream-gateway:8080
       tokenEnv: WORKFLOW_STREAM_GATEWAY_TOKEN
       pathPrefix: /api/v1/internal/events
   queues:
@@ -117,6 +117,7 @@ secretValues:
 networkPolicy:
   enabled: true
   monitoringNamespace: monitoring
+  targetPorts: [8080]
   additionalEgressRules: []
 
 serviceMonitor:

@@ -76,13 +76,17 @@ func TestHealthServer_ReportsAStalledReceive(t *testing.T) {
 	srv := newHealthServer(":0", observability.GinConfig(observability.ServiceName, "test", "test", log), w)
 
 	rec := httptest.NewRecorder()
-	srv.Handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/healthz", nil))
+	srv.Handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/readyz", nil))
 	require.Equal(t, http.StatusOK, rec.Code)
 
 	now = now.Add(2 * time.Minute)
 	rec = httptest.NewRecorder()
-	srv.Handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/healthz", nil))
+	srv.Handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/readyz", nil))
 	assert.Equal(t, http.StatusServiceUnavailable, rec.Code)
+
+	rec = httptest.NewRecorder()
+	srv.Handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/healthz", nil))
+	assert.Equal(t, http.StatusOK, rec.Code, "liveness must not follow an SQS or STS outage that a restart cannot fix")
 }
 
 func TestReceiveWatch_UnhealthyUntilTheFirstReceiveSucceeds(t *testing.T) {

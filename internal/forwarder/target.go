@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -71,6 +72,8 @@ func NewTarget(name, addr, pathPrefix, token string, timeout time.Duration) *Tar
 	}
 }
 
+const maxDrainedResponseBytes = 64 << 10
+
 func (t *Target) accepts(eventType string) bool {
 	if t.Name != ExecutionTarget {
 		return true
@@ -99,7 +102,10 @@ func (t *Target) forward(ctx context.Context, eventType string, body []byte) err
 	if err != nil {
 		return fmt.Errorf("%s: %w", t.Name, err)
 	}
-	defer func() { _ = resp.Body.Close() }()
+	defer func() {
+		_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, maxDrainedResponseBytes))
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode >= 300 {
 		return &StatusError{Target: t.Name, Status: resp.StatusCode}

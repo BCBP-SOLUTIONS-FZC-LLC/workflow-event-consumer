@@ -8,6 +8,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- A production deploy could not reach its targets: addresses had to be https while the services serve plain HTTP on 8080, and egress allowed 443 only. A target address may be http naming a port outside dev, the chart points at the services on 8080 and the NetworkPolicy opens `networkPolicy.targetPorts`.
+- `/healthz` followed the receive watch, so a shared SQS or STS outage restarted every pod. It is liveness now and `/readyz` carries the watch; the readiness and startup probes use `/readyz`.
+- The forward client drains a bounded part of each answer, so connections are reused instead of opened for every forward.
+
 ### Added
 
 - Contract tests (`test/contract`, run by `make test`) forward every event type the topology routes to the Definition Service or the Execution Service through the real forwarder and check each request, and every status the spec declares, against that service's internal OpenAPI copy in `api/contracts/`. `make contract-check` and a quality-workflow step compare each copy with its source.

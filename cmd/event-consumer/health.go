@@ -83,7 +83,8 @@ func newHealthServer(addr string, ginCfg gincommon.Config, watch *receiveWatch) 
 		r.Use(mw)
 	}
 	live := gincommon.HealthHandler()
-	r.GET("/healthz", func(c *gin.Context) {
+	r.GET("/healthz", live)
+	r.GET("/readyz", func(c *gin.Context) {
 		if !watch.healthy() {
 			c.JSON(http.StatusServiceUnavailable, gin.H{"status": "receive_stalled"})
 			return
