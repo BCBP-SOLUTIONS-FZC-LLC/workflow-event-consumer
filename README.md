@@ -105,7 +105,10 @@ make test              # unit tests, using test/mocks' mock downstreams
 make test-integration  # requires Docker; real LocalStack SNS and SQS
 make test-ci           # both suites, merged coverage
 make check             # format, lint, vet, import rules, the observability standard, chart lint and the coverage gate
+make contract-check    # api/contracts matches its source (needs GH_TOKEN, or CONTRACT_SRC_DIR=<checkout> with CONTRACT_SRC_REPO=<owner/repo> for one local source)
 ```
+
+`make test` also runs `test/contract`: every event type the topology routes to the Definition Service or the Execution Service is forwarded through the real forwarder and held to that service's OpenAPI copy in `api/contracts/`.
 
 `test/mocks` provides a reusable mock downstream (`mocks.Downstream`) used by the unit and integration tests; `cmd/mock-downstream` is a standalone binary used only by `docker compose up`.
 

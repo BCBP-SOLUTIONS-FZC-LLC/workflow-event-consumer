@@ -73,6 +73,11 @@ jobs:
       - name: Observability standard lint
         run: make metrics-lint
 
+      - name: Contract copy check
+        env:
+          GH_TOKEN: ${{ secrets.GO_PRIVATE_TOKEN }}
+        run: make contract-check
+
       - uses: azure/setup-helm@v4
 
       - name: Helm chart lint + kubeconform

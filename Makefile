@@ -36,7 +36,7 @@ COVER_PROFILE   := $(COVERAGE_DIR)/coverage.out
 COVER_HTML      := $(COVERAGE_DIR)/coverage.html
 COVER_THRESHOLD := 90
 
-.PHONY: metrics-lint metrics-inventory helm-lint lint-workflows pin-base-images all tools tools-integration setup install-hooks build test test-integration test-ci \
+.PHONY: contract-check metrics-lint metrics-inventory helm-lint lint-workflows pin-base-images all tools tools-integration setup install-hooks build test test-integration test-ci \
         merge-coverage cover cover-func cover-html cover-check \
         tidy fmt-check fix check lint lint-fix arch-lint vuln \
         docker-build docker-build-mock-downstream docker-lint docker-trivy docker-check \
@@ -113,7 +113,7 @@ test:
 	go test -race -count=1 \
 	    -coverpkg=./internal/... \
 	    -coverprofile=$(COVERAGE_DIR)/unit.out -covermode=atomic \
-	    ./internal/...
+	    ./internal/... ./test/contract/...
 	@go tool cover -func=$(COVERAGE_DIR)/unit.out | awk '/^total:/{print "total:", $$NF}'
 
 ## test-integration: Run the LocalStack integration test — requires Docker
@@ -196,6 +196,10 @@ arch-lint:
 ## lint-fix: Run golangci-lint with auto-fix
 lint-fix:
 	$(GOLANGCI) run --build-tags=integration --fix ./...
+
+## contract-check: Fail if a copied contract in api/contracts differs from its source (CONTRACT_SRC_DIR=<checkout> CONTRACT_SRC_REPO=<owner/repo> reads one source locally)
+contract-check:
+	@scripts/contract-check.sh
 
 ## metrics-lint: Observability standard: collector naming, metricslint on a real scrape, alert and doc references, inventory drift
 metrics-lint:
