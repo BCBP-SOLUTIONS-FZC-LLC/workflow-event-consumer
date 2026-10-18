@@ -8,12 +8,12 @@ The `routes` map of [`config/topology.example.yaml`](../config/topology.example.
 | --- | --- |
 | `DelegationStarted` | execution |
 | `DelegationEnded` | execution |
-| `TenantStateChanged` | execution |
+| `TenantStateChanged` | execution, definition |
 | `UserDeleted` | execution |
 | `UserAvailabilityChanged` | execution |
 | `DepartmentMembershipRevoked` | definition |
 | `MembershipRevoked` | definition, execution |
-| `TenantMembershipsPurged` | execution |
+| `TenantMembershipsPurged` | execution, definition |
 | `WorkflowTaskCreated` | workflow-stream-gateway, execution |
 | `WorkflowTaskCompleted` | workflow-stream-gateway |
 | `WorkflowTaskDeferred` | workflow-stream-gateway |

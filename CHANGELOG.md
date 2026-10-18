@@ -16,6 +16,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- `TenantStateChanged` and `TenantMembershipsPurged` are routed to the Definition Service as well as to Execution: Definition records a departed tenant and purges its templates and credentials after a retention period (Definition LLD §7.4.6). The topology example, the local topology, the chart values, the runbook, the AsyncAPI and the LLD agree, and a test fails if either file routes them to one service only. The Definition contract copy and its `SOURCES` pin follow its internal spec.
 - CI lints the Dockerfile, builds the image and scans it with Trivy (fixable HIGH and CRITICAL fail the build), as the other workflow services do.
 - Contract tests (`test/contract`, run by `make test`) forward every event type the topology routes to the Definition Service or the Execution Service through the real forwarder and check each request, and every status the spec declares, against that service's internal OpenAPI copy in `api/contracts/`. `make contract-check` and a quality-workflow step compare each copy with its source.
 - Telemetry through `platform-gincommon` and `platform-events`: the `platform_*` series (including `platform_messages_*`, `platform_dlq_*` and `platform_queue_depth`) in every scrape, `make metrics-lint`, a generated `docs/observability/metric-registry.md`, and a scrape test that also checks every metric an alert rule names exists.

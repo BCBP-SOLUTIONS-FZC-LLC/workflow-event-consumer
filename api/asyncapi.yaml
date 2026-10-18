@@ -122,9 +122,9 @@ components:
       payload: { $ref: '#/components/schemas/Envelope' }
     TenantStateChanged:
       name: TenantStateChanged
-      description: The resolved tenant lifecycle relay. Execution pauses, resumes or terminates the tenant's instances.
+      description: The resolved tenant lifecycle relay. Execution pauses, resumes or terminates the tenant's instances; for a status of offboarded Definition records the tenant for the purge of its templates and credentials and ignores every other status.
       x-schema-owner: iam-org-membership
-      x-targets: [execution]
+      x-targets: [execution, definition]
       payload: { $ref: '#/components/schemas/Envelope' }
     UserDeleted:
       name: UserDeleted
@@ -153,9 +153,9 @@ components:
       payload: { $ref: '#/components/schemas/Envelope' }
     TenantMembershipsPurged:
       name: TenantMembershipsPurged
-      description: The tenant offboarding cascade signal. Execution terminates the tenant's non-terminal instances.
+      description: The tenant offboarding cascade signal. Execution terminates the tenant's non-terminal instances and Definition records the tenant for the purge of its templates and credentials.
       x-schema-owner: iam-org-membership
-      x-targets: [execution]
+      x-targets: [execution, definition]
       x-delivery: requested
       payload: { $ref: '#/components/schemas/Envelope' }
     WorkflowTaskCreated:

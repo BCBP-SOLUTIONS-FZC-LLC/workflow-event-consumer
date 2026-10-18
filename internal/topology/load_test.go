@@ -3,6 +3,8 @@ package topology
 import (
 	"os"
 	"path/filepath"
+	"slices"
+	"sort"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -137,4 +139,20 @@ func TestValidate_ExecutionOnlyReceivesCategorisedTypes(t *testing.T) {
 
 	cfg.Routes = map[string][]string{"UserDeleted": {"execution"}}
 	assert.NoError(t, cfg.validate())
+}
+
+func TestTenantOffboardingEventsReachBothServicesThatAct(t *testing.T) {
+	for _, file := range []string{"../../config/topology.example.yaml", "../../config/topology.local.yaml"} {
+		cfg, err := Load(file)
+		if err != nil {
+			t.Fatalf("load %s: %v", file, err)
+		}
+		for _, eventType := range []string{"TenantStateChanged", "TenantMembershipsPurged"} {
+			got := append([]string(nil), cfg.Routes[eventType]...)
+			sort.Strings(got)
+			if want := []string{"definition", "execution"}; !slices.Equal(got, want) {
+				t.Errorf("%s routes %s to %v, want %v: Definition records the departed tenant for its purge and Execution terminates its instances", file, eventType, got, want)
+			}
+		}
+	}
 }

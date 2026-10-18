@@ -69,7 +69,11 @@ queues:
 routes:
   DelegationStarted: [execution]
   DelegationEnded: [execution]
-  TenantStateChanged: [execution]
+  # An offboarded status is acted on by both services: Execution terminates the
+  # tenant's instances, Definition records the tenant for the purge of its
+  # templates and credentials. Every other status is Execution's alone; Definition
+  # acknowledges and ignores it.
+  TenantStateChanged: [execution, definition]
   UserDeleted: [execution]
   UserAvailabilityChanged: [execution]
   DepartmentMembershipRevoked: [definition]
@@ -80,8 +84,9 @@ routes:
   # assignments — or a removed user keeps their tasks indefinitely.
   MembershipRevoked: [definition, execution]
   # IAM Core's tenant-offboarding cascade signal. Execution terminates the
-  # tenant's non-terminal instances; Definition needs no cascade of its own.
-  TenantMembershipsPurged: [execution]
+  # tenant's non-terminal instances; Definition records the tenant for the
+  # purge of its templates and credentials.
+  TenantMembershipsPurged: [execution, definition]
   WorkflowTaskCreated: [workflow-stream-gateway, execution]
   WorkflowTaskCompleted: [workflow-stream-gateway]
   WorkflowTaskDeferred: [workflow-stream-gateway]
