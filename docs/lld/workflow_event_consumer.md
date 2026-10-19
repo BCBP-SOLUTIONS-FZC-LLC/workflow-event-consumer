@@ -9,8 +9,8 @@
 | Document Type | Low-Level Design (LLD) |
 | Service | Workflow Events Consumer (`workflow-events-consumer`, repository `workflow-event-consumer`) |
 | Subsystem | Workflow Engine — inbound event delivery |
-| Version | 1.1 |
-| Date | 2026-10-12 |
+| Version | 1.5 |
+| Date | 2026-10-19 |
 | Status | Approved |
 | Audience | Workflow Engine team, IAM, platform/infra |
 | Owner database | None (stateless) |

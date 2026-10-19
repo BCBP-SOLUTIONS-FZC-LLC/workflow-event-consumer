@@ -106,7 +106,7 @@ docker compose up
 make test              # unit tests, using test/mocks' mock downstreams
 make test-integration  # requires Docker; real LocalStack SNS and SQS
 make test-ci           # both suites, merged coverage
-make check             # format, lint, vet, import rules, the observability standard, chart lint and the coverage gate
+make check             # format, lint (integration tag included), vet, import rules, the observability standard, the design-sync script's test, chart lint and the coverage gate
 make contract-check    # api/contracts matches its source (needs GH_TOKEN, or CONTRACT_SRC_DIR=<checkout> with CONTRACT_SRC_REPO=<owner/repo> for one local source)
 ```
 
@@ -119,6 +119,7 @@ make contract-check    # api/contracts matches its source (needs GH_TOKEN, or CO
 | `make lint` / `make arch-lint` / `make vuln` | golangci-lint, import-direction rules, dependency vulnerabilities |
 | `make metrics-lint` / `make metrics-inventory` | Observability standard, regenerate the inventory |
 | `make helm-lint` / `make lint-workflows` | Chart validation, workflow lint |
+| `make design-sync-check` / `make design-sync-check-test` | Fail when a document kept here and in the design repository differs (`DESIGN_DIR=<checkout>`, or `GH_TOKEN` reads `Haroon-BCBP/design`); CI skips it with a notice until the `DESIGN_REPO_TOKEN` secret exists |
 | `make docker-check` / `make pin-base-images` | Dockerfile lint and scan, digest pins |
 
 ## Architecture
