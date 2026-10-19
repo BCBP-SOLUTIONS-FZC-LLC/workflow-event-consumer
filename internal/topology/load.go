@@ -3,6 +3,7 @@ package topology
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"gopkg.in/yaml.v3"
 
@@ -10,7 +11,7 @@ import (
 )
 
 func Load(path string) (Config, error) {
-	raw, err := os.ReadFile(path)
+	raw, err := os.ReadFile(filepath.Clean(path))
 	if err != nil {
 		return Config{}, fmt.Errorf("topology: reading %s: %w", path, err)
 	}
