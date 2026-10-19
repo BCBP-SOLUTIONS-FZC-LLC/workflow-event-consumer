@@ -51,10 +51,6 @@ linters:
         linters:
           - noctx
           - gosec
-      - path: ^cmd/
-        text: exitAfterDefer
-        linters:
-          - gocritic
       - path: ^cmd/mock-downstream/
         linters:
           - gosec
