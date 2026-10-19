@@ -28,11 +28,11 @@ func main() {
 			Type string `json:"type"`
 		}
 		_ = json.NewDecoder(r.Body).Decode(&env)
-		log.Printf("[%q] received event id=%q type=%q", name, env.ID, env.Type)
+		log.Printf("[%s] received event id=%s type=%s", name, env.ID, env.Type)
 		w.WriteHeader(http.StatusOK)
 	})
 
-	log.Printf("[%q] listening on :%q", name, port)
+	log.Printf("[%s] listening on :%s", name, port)
 	srv := &http.Server{Addr: ":" + port, Handler: mux, ReadHeaderTimeout: 5 * time.Second}
 	log.Fatal(srv.ListenAndServe())
 }

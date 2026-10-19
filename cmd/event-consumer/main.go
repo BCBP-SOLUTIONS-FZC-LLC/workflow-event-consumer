@@ -37,13 +37,12 @@ func main() {
 	if err != nil {
 		log.Fatalf("event-consumer: telemetry: %v", err)
 	}
-	defer shutdownTelemetry()
 
 	wlog.Info("event-consumer starting", map[string]any{"version": version})
 
 	d, err := buildDeps(cfg, wlog)
 	if err != nil {
-		log.Fatalf("event-consumer: %v", err)
+		fatalf(shutdownTelemetry, "event-consumer: %v", err)
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -79,13 +78,19 @@ func main() {
 	}
 
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), shutdownGrace)
-	defer shutdownCancel()
 	if err := healthSrv.Shutdown(shutdownCtx); err != nil {
 		wlog.Warn("health server shutdown error", map[string]any{"error": err.Error()})
 	}
+	shutdownCancel()
 
+	shutdownTelemetry()
 	if exitCode != 0 {
-		shutdownTelemetry()
 		os.Exit(exitCode)
 	}
+}
+
+func fatalf(flush func(), format string, v ...any) {
+	log.Printf(format, v...)
+	flush()
+	os.Exit(1)
 }
