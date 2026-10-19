@@ -21,7 +21,7 @@ type QueueSpec struct {
 	URL  string
 }
 
-const MaxReceiveCount = 4
+const DefaultMaxReceiveCount = 4
 
 type Options struct {
 	DeadLetters        events.DLQPublisher
@@ -34,12 +34,16 @@ type Options struct {
 	RetryBackoffBase   time.Duration
 	RetryBackoffMax    time.Duration
 	QueueDepthInterval time.Duration
+	MaxReceiveCount    int
 	Logger             Logger
 }
 
 func Build(spec QueueSpec, opts Options, fwd *forwarder.Forwarder, router Router) (events.Consumer, error) {
 	if opts.DeadLetters == nil {
 		return nil, fmt.Errorf("new sqs consumer for queue %s: dead-letter publisher is required", spec.Name)
+	}
+	if opts.MaxReceiveCount < 1 {
+		return nil, fmt.Errorf("new sqs consumer for queue %s: max receive count must be at least 1, got %d", spec.Name, opts.MaxReceiveCount)
 	}
 	c, err := events.NewSQSConsumer(
 		events.SQSConfig{
@@ -57,7 +61,7 @@ func Build(spec QueueSpec, opts Options, fwd *forwarder.Forwarder, router Router
 		events.WithQueueDepthMetrics(opts.QueueDepthInterval),
 		events.WithConsumerCodec(events.NoopCodec{}),
 		events.WithDLQForwarding(opts.DeadLetters),
-		events.WithMaxReceiveCount(MaxReceiveCount),
+		events.WithMaxReceiveCount(opts.MaxReceiveCount),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("new sqs consumer for queue %s: %w", spec.Name, err)

@@ -65,11 +65,11 @@ The category map lives in code, not in the topology file: a category with no mat
 
 ## The pod is not ready and nothing is consumed
 
-`/readyz` answers 503 after two minutes without a successful SQS receive (`/healthz`, the liveness probe, keeps answering, so a shared SQS outage does not restart the pods). Check the `WorkflowEventsConsumerReceiveFailing` alert and the pod's logs for `receive message failed`: a denied `sqs:ReceiveMessage`, a queue URL that does not exist, or an `AWS_REGION` that does not match the queues. Fix the role, the topology or the region; the pod becomes ready on its own once a receive succeeds. A pod is not ready until its first receive has succeeded. The receive metric has no queue label, so one queue with a wrong URL among healthy ones keeps the pod ready: the `WorkflowEventsConsumerReceiveFailing` alert and the `receive message failed` log line name the failing queue.
+`/readyz` answers 503 after `RECEIVE_STALL_WINDOW` (two minutes by default) without a successful SQS receive (`/healthz`, the liveness probe, keeps answering, so a shared SQS outage does not restart the pods). Check the `WorkflowEventsConsumerReceiveFailing` alert and the pod's logs for `receive message failed`: a denied `sqs:ReceiveMessage`, a queue URL that does not exist, or an `AWS_REGION` that does not match the queues. Fix the role, the topology or the region; the pod becomes ready on its own once a receive succeeds. A pod is not ready until its first receive has succeeded. The receive metric has no queue label, so one queue with a wrong URL among healthy ones keeps the pod ready: the `WorkflowEventsConsumerReceiveFailing` alert and the `receive message failed` log line name the failing queue.
 
 ## A message is stuck redelivering
 
-A transient failure is retried at 30 seconds, then 1, 2 and 4 minutes, and the message is dead-lettered on the fifth receive: a target outage of about seven minutes is covered, a longer one dead-letters what arrived during it and needs a redrive from the dead-letter queue.
+A transient failure is retried after 30 seconds, then 1 and 2 minutes, so a message is handled at 0, 30 s, 90 s and 210 s, and it is dead-lettered on the fifth receive at 450 s without another handling attempt: a target outage of about three and a half minutes is covered, a longer one dead-letters what arrived during it and needs a redrive from the dead-letter queue. `MAX_RECEIVE_COUNT` sets the threshold (5 covers about seven and a half minutes, after the queues' redrive count is raised above it).
 
 1. Check `workflow_events_consumer_forward_total` to identify which target is
    failing.

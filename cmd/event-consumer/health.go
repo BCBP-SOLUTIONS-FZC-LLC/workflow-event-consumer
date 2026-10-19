@@ -13,8 +13,6 @@ import (
 )
 
 const (
-	receiveStallWindow = 2 * time.Minute
-
 	receiveSeries = "platform_dependency_request_seconds"
 )
 

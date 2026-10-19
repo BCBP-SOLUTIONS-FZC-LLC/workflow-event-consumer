@@ -52,7 +52,7 @@ func main() {
 	}
 	sup := superviseConsumers(ctx, consumers, wlog)
 
-	watch := newReceiveWatch(gincommon.MetricsGatherer(), receiveStallWindow, time.Now)
+	watch := newReceiveWatch(gincommon.MetricsGatherer(), cfg.ReceiveStallWindow, time.Now)
 	healthSrv := newHealthServer(fmt.Sprintf(":%d", cfg.HealthPort), observability.GinConfig(cfg.OTELServiceName, cfg.BuildVersion, cfg.AppEnv, wlog), watch)
 	go func() {
 		if err := healthSrv.ListenAndServe(); err != nil && err != http.ErrServerClosed {

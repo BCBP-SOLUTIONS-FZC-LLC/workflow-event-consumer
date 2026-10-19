@@ -14,7 +14,7 @@ func depsConfig(topologyPath string) *config.Config {
 	return &config.Config{
 		AppEnv: "dev", AWSRegion: "us-east-1", AWSEndpointURL: "http://localhost:4566", TopologyPath: topologyPath,
 		ConsumerConcurrency: 2, VisibilityTimeout: 30 * time.Second, DrainTimeout: time.Second, ForwardTimeout: 5 * time.Second,
-		HandlerTimeout: 20 * time.Second, RetryBackoffBase: 30 * time.Second, RetryBackoffMax: 5 * time.Minute, QueueDepthInterval: 30 * time.Second,
+		HandlerTimeout: 20 * time.Second, RetryBackoffBase: 30 * time.Second, RetryBackoffMax: 5 * time.Minute, QueueDepthInterval: 30 * time.Second, MaxReceiveCount: 4,
 	}
 }
 

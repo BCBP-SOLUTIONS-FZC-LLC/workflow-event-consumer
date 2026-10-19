@@ -51,6 +51,7 @@ func buildDeps(cfg *config.Config, logger consumer.Logger) (*deps, error) {
 		RetryBackoffBase:   cfg.RetryBackoffBase,
 		RetryBackoffMax:    cfg.RetryBackoffMax,
 		QueueDepthInterval: cfg.QueueDepthInterval,
+		MaxReceiveCount:    cfg.MaxReceiveCount,
 		Logger:             logger,
 	}
 

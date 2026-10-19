@@ -66,7 +66,9 @@ its own token.
 | `DRAIN_TIMEOUT` | Graceful-shutdown grace period per consumer (default `30s`) |
 | `FORWARD_TIMEOUT` | Per-target HTTP client timeout (default `5s`) |
 | `HANDLER_TIMEOUT` | Per-message deadline (default `20s`); must not exceed `VISIBILITY_TIMEOUT`, and `FORWARD_TIMEOUT` must not exceed it |
-| `RETRY_BACKOFF_BASE`, `RETRY_BACKOFF_MAX` | Redelivery backoff after a failed message (defaults `30s`, `5m`); with the receive threshold of 4 a message is retried over about 7 minutes before it is dead-lettered |
+| `RETRY_BACKOFF_BASE`, `RETRY_BACKOFF_MAX` | Redelivery backoff after a failed message (defaults `30s`, `5m`); with the default receive threshold a message is handled at 0, 30 s, 90 s and 210 s and dead-lettered on its fifth receive at 450 s, so a target outage of about 3.5 minutes is survived |
+| `MAX_RECEIVE_COUNT` | Receive count above which a message is dead-lettered instead of handled (default `4`, at least 1): four handling attempts, the fifth receive dead-letters. It must stay below every queue's redrive count (infrastructure-owned), or SQS moves the message first |
+| `RECEIVE_STALL_WINDOW` | How long without a successful receive before `/readyz` answers 503 (default `2m`) |
 | `QUEUE_DEPTH_INTERVAL` | Cadence of the queue-depth metric (default `30s`) |
 | `OTEL_SERVICE_NAME`, `OTEL_EXPORTER_OTLP_ENDPOINT` | Trace and metric identity; export is off when the endpoint is unset or `none`. The NetworkPolicy allows egress on 443 and the target ports only, so a collector on another port (the usual 4317) needs an entry in `networkPolicy.additionalEgressRules` |
 | *(one per target, named in topology.yaml's `tokenEnv`)* | e.g. `EXECUTION_SERVICE_TOKEN`, `DEFINITION_SERVICE_TOKEN` |
@@ -137,7 +139,7 @@ Every series carries `domain` (`workflow`), `service` (`workflow-events-consumer
 
 - Each target has its own token, sent as `x-internal-token`; outside dev and local startup fails if any target's token is missing.
 - The IAM role can only consume SQS; it never publishes and never touches S3, KMS or Glue.
-- The health server serves `/healthz`, `/readyz` and `/metrics` only, with read, write and idle timeouts. `/healthz` is liveness and answers while the process serves. `/readyz` answers 503 until the first SQS receive has succeeded and again when none has succeeded for two minutes, so a consumer that cannot receive is taken out of service; the chart's liveness probe does not follow it, since a restart cannot fix an SQS or STS outage.
+- The health server serves `/healthz`, `/readyz` and `/metrics` only, with read, write and idle timeouts. `/healthz` is liveness and answers while the process serves. `/readyz` answers 503 until the first SQS receive has succeeded and again when none has succeeded for `RECEIVE_STALL_WINDOW` (two minutes by default), so a consumer that cannot receive is taken out of service; the chart's liveness probe does not follow it, since a restart cannot fix an SQS or STS outage.
 - Container: distroless, non-root, read-only root filesystem, all capabilities dropped.
 
 ---

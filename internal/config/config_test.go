@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -127,6 +128,47 @@ func TestLoad_ConsumerOptionDefaults(t *testing.T) {
 	}
 }
 
+func TestLoad_ReceiveSettingDefaults(t *testing.T) {
+	requiredEnv(t)
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.MaxReceiveCount != 4 || cfg.ReceiveStallWindow != 2*time.Minute {
+		t.Errorf("defaults = %d %v, want 4 and 2m", cfg.MaxReceiveCount, cfg.ReceiveStallWindow)
+	}
+}
+
+func TestLoad_ReceiveSettingsCanBeOverridden(t *testing.T) {
+	requiredEnv(t)
+	t.Setenv("MAX_RECEIVE_COUNT", "5")
+	t.Setenv("RECEIVE_STALL_WINDOW", "90s")
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.MaxReceiveCount != 5 || cfg.ReceiveStallWindow != 90*time.Second {
+		t.Errorf("settings = %d %v, want 5 and 90s", cfg.MaxReceiveCount, cfg.ReceiveStallWindow)
+	}
+}
+
+func TestLoad_RejectsAReceiveSettingThatWouldDisableTheMechanism(t *testing.T) {
+	for _, tc := range []struct{ key, value string }{
+		{"MAX_RECEIVE_COUNT", "0"},
+		{"MAX_RECEIVE_COUNT", "-1"},
+		{"RECEIVE_STALL_WINDOW", "0s"},
+		{"RECEIVE_STALL_WINDOW", "-1m"},
+	} {
+		t.Run(tc.key+"="+tc.value, func(t *testing.T) {
+			requiredEnv(t)
+			t.Setenv(tc.key, tc.value)
+			if _, err := Load(); err == nil || !strings.Contains(err.Error(), tc.key) {
+				t.Fatalf("Load() error = %v, want one naming %s", err, tc.key)
+			}
+		})
+	}
+}
+
 func TestValidate_RejectsInconsistentSettings(t *testing.T) {
 	requiredEnv(t)
 	valid := func() *Config {
@@ -134,7 +176,7 @@ func TestValidate_RejectsInconsistentSettings(t *testing.T) {
 			AppEnv: "dev", AWSRegion: "us-east-1", HealthPort: 8082, TopologyPath: "t.yaml", ConsumerConcurrency: 10,
 			VisibilityTimeout: 30 * time.Second, DrainTimeout: 30 * time.Second, ForwardTimeout: 5 * time.Second,
 			HandlerTimeout: 20 * time.Second, RetryBackoffBase: 5 * time.Second, RetryBackoffMax: 5 * time.Minute,
-			QueueDepthInterval: 30 * time.Second,
+			QueueDepthInterval: 30 * time.Second, MaxReceiveCount: 4, ReceiveStallWindow: 2 * time.Minute,
 		}
 	}
 	if err := valid().Validate(); err != nil {
@@ -156,6 +198,8 @@ func TestValidate_RejectsInconsistentSettings(t *testing.T) {
 		{"backoff base unset", func(c *Config) { c.RetryBackoffBase = 0 }, "RETRY_BACKOFF_BASE must be > 0"},
 		{"backoff max below base", func(c *Config) { c.RetryBackoffMax = time.Second }, "RETRY_BACKOFF_MAX"},
 		{"queue depth interval", func(c *Config) { c.QueueDepthInterval = 0 }, "QUEUE_DEPTH_INTERVAL"},
+		{"max receive count", func(c *Config) { c.MaxReceiveCount = 0 }, "MAX_RECEIVE_COUNT"},
+		{"receive stall window", func(c *Config) { c.ReceiveStallWindow = 0 }, "RECEIVE_STALL_WINDOW"},
 		{"region", func(c *Config) { c.AWSRegion = "" }, "AWS_REGION is required"},
 	} {
 		c := valid()
@@ -210,7 +254,10 @@ func TestChartAndEnvExampleMatchTheCodeDefaults(t *testing.T) {
 		"RETRY_BACKOFF_BASE":   cfg.RetryBackoffBase.String(),
 		"RETRY_BACKOFF_MAX":    cfg.RetryBackoffMax.String(),
 		"QUEUE_DEPTH_INTERVAL": cfg.QueueDepthInterval.String(),
+		"MAX_RECEIVE_COUNT":    strconv.Itoa(cfg.MaxReceiveCount),
+		"RECEIVE_STALL_WINDOW": cfg.ReceiveStallWindow.String(),
 	}
+	mustBeSet := map[string]bool{"MAX_RECEIVE_COUNT": true, "RECEIVE_STALL_WINDOW": true}
 	normalise := func(v string) string {
 		d, err := time.ParseDuration(strings.TrimSpace(v))
 		if err != nil {
@@ -238,6 +285,9 @@ func TestChartAndEnvExampleMatchTheCodeDefaults(t *testing.T) {
 			}
 			m := re.FindSubmatch(src)
 			if m == nil {
+				if mustBeSet[key] {
+					t.Errorf("%s does not set %s", name, key)
+				}
 				continue
 			}
 			if got := normalise(string(m[1])); got != def {

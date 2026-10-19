@@ -58,6 +58,7 @@ func buildConsumer(t *testing.T, ls *fixtures.LocalStackSNSSQS, queueName, queue
 			RetryBackoffBase:   time.Second,
 			RetryBackoffMax:    5 * time.Second,
 			QueueDepthInterval: 10 * time.Second,
+			MaxReceiveCount:    consumer.DefaultMaxReceiveCount,
 		},
 		fwd,
 		router,
@@ -335,7 +336,7 @@ func TestLocalStackFlow_MalformedBodyIsDeadLetteredAndNeverLogged(t *testing.T) 
 	userQueue := ls.Queues["iam-user-events"]
 	c, err := consumer.Build(
 		consumer.QueueSpec{Name: "user", URL: userQueue.QueueURL},
-		consumer.Options{DeadLetters: deadLetters, Region: "us-east-1", EndpointURL: ls.EndpointURL, Concurrency: 1, VisibilityTimeout: 5 * time.Second, DrainTimeout: 5 * time.Second, Logger: logs},
+		consumer.Options{DeadLetters: deadLetters, Region: "us-east-1", EndpointURL: ls.EndpointURL, Concurrency: 1, VisibilityTimeout: 5 * time.Second, DrainTimeout: 5 * time.Second, MaxReceiveCount: consumer.DefaultMaxReceiveCount, Logger: logs},
 		forwarder.New(),
 		consumer.NewRouter(exampleRoutes(t), nil),
 	)

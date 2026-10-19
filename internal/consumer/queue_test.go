@@ -37,6 +37,7 @@ func TestBuild_AcceptsTheProductionOptions(t *testing.T) {
 		RetryBackoffBase:   5 * time.Second,
 		RetryBackoffMax:    5 * time.Minute,
 		QueueDepthInterval: 30 * time.Second,
+		MaxReceiveCount:    DefaultMaxReceiveCount,
 	}
 
 	c, err := Build(QueueSpec{Name: "membership", URL: "http://localhost:4566/000000000000/membership-workflow-q"}, opts, forwarder.New(), NewRouter(nil, nil))
@@ -52,6 +53,15 @@ func TestBuild_RequiresADeadLetterPublisher(t *testing.T) {
 	assert.Contains(t, err.Error(), "dead-letter publisher")
 }
 
+func TestBuildRefusesAThresholdThatWouldTurnDeadLetterRoutingOff(t *testing.T) {
+	for _, n := range []int{0, -3} {
+		_, err := Build(QueueSpec{Name: "membership", URL: "http://localhost:4566/000000000000/membership-workflow-q"},
+			Options{DeadLetters: &eventsmock.DLQPublisher{}, Region: "us-east-1", MaxReceiveCount: n}, forwarder.New(), NewRouter(nil, nil))
+		require.Error(t, err, n)
+		assert.Contains(t, err.Error(), "max receive count")
+	}
+}
+
 func TestReceiveThresholdIsBelowTheRedriveCountOfTheLocalQueues(t *testing.T) {
 	raw, err := os.ReadFile("../../scripts/init-localstack.sh")
 	require.NoError(t, err)
@@ -60,5 +70,5 @@ func TestReceiveThresholdIsBelowTheRedriveCountOfTheLocalQueues(t *testing.T) {
 	require.Len(t, m, 2, "the local stack sets a redrive count")
 	redrive, err := strconv.Atoi(m[1])
 	require.NoError(t, err)
-	assert.Less(t, MaxReceiveCount, redrive, "SQS would move the message before the consumer dead-letters it")
+	assert.Less(t, DefaultMaxReceiveCount, redrive, "SQS would move the message before the consumer dead-letters it")
 }

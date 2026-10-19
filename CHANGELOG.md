@@ -8,6 +8,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+
+- The receive threshold and the stall window are settings, `MAX_RECEIVE_COUNT` (default 4, at least 1) and `RECEIVE_STALL_WINDOW` (default 2m), defaults unchanged; they are in the chart values and `.env.example`. The threshold must stay below every queue's redrive count (infrastructure-owned). The docs said the retries spread over about seven minutes: a message is handled at 0, 30 s, 90 s and 210 s and dead-lettered on the fifth receive at 450 s, so a target outage of about three and a half minutes is survived (about seven and a half with a threshold of 5, after the queues' redrive count is raised). LLD rev 1.5.
+
 ### Fixed
 
 - A production deploy could not reach its targets: addresses had to be https while the services serve plain HTTP on 8080, and egress allowed 443 only. A target address may be http naming a port outside dev, the chart points at the services on 8080 and the NetworkPolicy opens `networkPolicy.targetPorts`.

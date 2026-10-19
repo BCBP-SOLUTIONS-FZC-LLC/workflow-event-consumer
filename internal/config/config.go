@@ -29,6 +29,8 @@ type Config struct {
 	RetryBackoffBase    time.Duration
 	RetryBackoffMax     time.Duration
 	QueueDepthInterval  time.Duration
+	MaxReceiveCount     int
+	ReceiveStallWindow  time.Duration
 
 	TopologyPath string
 }
@@ -77,6 +79,8 @@ func Load() (*Config, error) {
 		RetryBackoffBase:    envDuration("RETRY_BACKOFF_BASE", 30*time.Second),
 		RetryBackoffMax:     envDuration("RETRY_BACKOFF_MAX", 5*time.Minute),
 		QueueDepthInterval:  envDuration("QUEUE_DEPTH_INTERVAL", 30*time.Second),
+		MaxReceiveCount:     envInt("MAX_RECEIVE_COUNT", 4),
+		ReceiveStallWindow:  envDuration("RECEIVE_STALL_WINDOW", 2*time.Minute),
 
 		TopologyPath: getEnvOrDefault("TOPOLOGY_CONFIG_PATH", "config/topology.yaml"),
 	}
@@ -135,6 +139,12 @@ func (c *Config) Validate() error {
 	}
 	if c.QueueDepthInterval <= 0 {
 		return fmt.Errorf("QUEUE_DEPTH_INTERVAL must be > 0")
+	}
+	if c.MaxReceiveCount < 1 {
+		return fmt.Errorf("MAX_RECEIVE_COUNT must be at least 1, since 0 would turn dead-letter routing off")
+	}
+	if c.ReceiveStallWindow <= 0 {
+		return fmt.Errorf("RECEIVE_STALL_WINDOW must be > 0")
 	}
 	return nil
 }
