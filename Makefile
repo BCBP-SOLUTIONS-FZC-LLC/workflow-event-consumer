@@ -181,6 +181,7 @@ check:
 	go vet ./cmd/... ./internal/...
 	@$(MAKE) arch-lint
 	@$(MAKE) metrics-lint
+	@$(MAKE) design-sync-check-test
 	@$(MAKE) helm-lint
 	@$(MAKE) cover-check
 	@echo "✓ all checks passed"
@@ -276,3 +277,13 @@ clean:
 ## help: Show this help
 help:
 	@grep -E '^## ' Makefile | sed 's/## /  /'
+
+.PHONY: design-sync-check design-sync-check-test
+
+## design-sync-check: Fail if a document kept in the design repository too differs (DESIGN_DIR=<checkout> reads it locally, else GH_TOKEN reads Haroon-BCBP/design)
+design-sync-check:
+	@scripts/design-sync-check.sh
+
+## design-sync-check-test: Test the design-sync-check script against throwaway directories
+design-sync-check-test:
+	@scripts/design-sync-check_test.sh
