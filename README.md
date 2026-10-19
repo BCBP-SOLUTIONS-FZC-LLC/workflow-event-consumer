@@ -119,7 +119,7 @@ make contract-check    # api/contracts matches its source (needs GH_TOKEN, or CO
 | `make lint` / `make arch-lint` / `make vuln` | golangci-lint, import-direction rules, dependency vulnerabilities |
 | `make metrics-lint` / `make metrics-inventory` | Observability standard, regenerate the inventory |
 | `make helm-lint` / `make lint-workflows` | Chart validation, workflow lint |
-| `make design-sync-check` / `make design-sync-check-test` | Fail when a document kept here and in the design repository differs (`DESIGN_DIR=<checkout>`, or `GH_TOKEN` reads `Haroon-BCBP/design`); CI skips it with a notice until the `DESIGN_REPO_TOKEN` secret exists |
+| `make design-sync-check` / `make design-sync-check-test` | Fail when a document kept here and in the design repository differs (`DESIGN_DIR=<checkout>`, or `GH_TOKEN` reads `Haroon-BCBP/design`); local only, because CI does not read the personal design repository |
 | `make docker-check` / `make pin-base-images` | Dockerfile lint and scan, digest pins |
 
 ## Architecture
