@@ -54,7 +54,7 @@ The category map lives in code, not in the topology file: a category with no mat
 - `workflow_events_consumer_forward_total{target,result="error"}` sustained
   at a nonzero rate — the named downstream service is failing or unreachable.
   Messages for that target's queue will keep redelivering until it recovers
-  or the queue's `maxReceiveCount` is exhausted.
+  or the consumer's receive threshold (`MAX_RECEIVE_COUNT`) dead-letters it.
 - `workflow_events_consumer_handler_duration_seconds{queue}` p99 climbing —
   either a downstream target is slow, or queue depth is outpacing
   `CONSUMER_CONCURRENCY`.
@@ -76,7 +76,7 @@ A transient failure is retried after 30 seconds, then 1 and 2 minutes, so a mess
 2. Check that target's own health/logs — a `5xx` there is expected to cause
    redelivery; that's by design (see [ARCHITECTURE.md](../ARCHITECTURE.md)'s
    ack-semantics section).
-3. A `400`, `413` or `422` is a permanent failure: the request is malformed and cannot succeed on any later attempt. When every failing target answered that way, the bridge sends the original message to the queue's dead-letter queue at once, with a reason naming the target and status, and deletes it from the source queue. Look for it in the dead-letter queue and in `platform_dlq_messages_total`. Every other status, including `401`, `403` and `404` (a rotated token or a route not yet deployed), and every network error is transient: the message stays on the queue and is redelivered with backoff until `maxReceiveCount` is exhausted. When one target fails permanently and another transiently, the message is redelivered, because the transient target still needs it; the permanent target receives it again, which its own idempotency absorbs.
+3. A `400`, `413` or `422` is a permanent failure: the request is malformed and cannot succeed on any later attempt. When every failing target answered that way, the bridge sends the original message to the queue's dead-letter queue at once, with a reason naming the target and status, and deletes it from the source queue. Look for it in the dead-letter queue and in `platform_dlq_messages_total`. Every other status, including `401`, `403` and `404` (a rotated token or a route not yet deployed), and every network error is transient: the message stays on the queue and is redelivered with backoff until the receive threshold (`MAX_RECEIVE_COUNT`) dead-letters it. When one target fails permanently and another transiently, the message is redelivered, because the transient target still needs it; the permanent target receives it again, which its own idempotency absorbs.
 
 ## Replaying a dead-lettered message
 

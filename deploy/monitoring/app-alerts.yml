@@ -12,8 +12,8 @@ groups:
           description: >
             Sustained forward failures to target "{{ $labels.target }}" for 10m —
             that downstream service is failing or unreachable; messages for its
-            routed queue(s) will keep redeliving until it recovers or maxReceiveCount
-            is exhausted. See docs/runbook.md.
+            routed queue(s) will keep redelivering until it recovers or the consumer's
+            receive threshold (MAX_RECEIVE_COUNT) dead-letters them. See docs/runbook.md.
 
       - alert: WorkflowEventsConsumerHandlerLatencyHigh
         expr: |
@@ -48,7 +48,7 @@ groups:
           description: >
             Messages on queue "{{ $labels.queue }}" have failed processing for 10m
             (reason "{{ $labels.reason }}"). Failed messages are redelivered with backoff
-            until the queue's maxReceiveCount moves them to its dead-letter queue.
+            until the consumer's receive threshold (MAX_RECEIVE_COUNT) moves them to the dead-letter queue.
 
       - alert: WorkflowEventsConsumerDeadLettered
         expr: |

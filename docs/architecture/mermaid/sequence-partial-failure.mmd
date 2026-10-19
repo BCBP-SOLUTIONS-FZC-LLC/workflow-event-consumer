@@ -36,4 +36,4 @@ sequenceDiagram
     H-->>C: nil
     C->>SQS: DeleteMessage (ack)
 
-    Note over SQS: after maxReceiveCount (5) consecutive failures,<br/>SQS's native redrive policy moves the message to that queue's DLQ
+    Note over SQS: after the receive threshold (4) of consecutive failures,<br/>the consumer moves the message to that queue's DLQ on the fifth receive
