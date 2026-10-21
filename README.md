@@ -3,7 +3,7 @@
 The shared SNS → SQS → HTTP bridge of the BCBP Workflow Engine: it consumes a set of SQS queues and forwards each event envelope, unmodified, to the downstream service whose internal events endpoint needs it.
 
 **Repository:** `github.com/BCBP-SOLUTIONS-FZC-LLC/workflow-events-consumer`  
-**Module:** Go 1.26.9 · private module · a containerised microservice not yet deployed to any live environment
+**Module:** Go 1.26.10 · private module · a containerised microservice not yet deployed to any live environment
 
 ---
 
