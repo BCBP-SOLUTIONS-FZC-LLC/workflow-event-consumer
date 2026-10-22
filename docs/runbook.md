@@ -83,6 +83,12 @@ Once the underlying cause is fixed, redrive from the DLQ back to the source
 queue using the AWS CLI or console — this bridge picks it up exactly like
 any other message on its next poll.
 
+A dead-letter queue can hold two copies of one message: the dead-letter send
+and the delete from the source queue are not atomic, so a crash between them,
+or a redelivery to another replica, sends it twice. A redrive is still safe:
+every target deduplicates on the envelope `id`. Anything else that reads a
+dead-letter queue deduplicates on the envelope `id` too.
+
 ```bash
 aws sqs start-message-move-task \
   --source-arn <dlq-arn> \

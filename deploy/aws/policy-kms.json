@@ -1,0 +1,36 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "WorkflowEventsConsumerKMSSourceQueues",
+      "Effect": "Allow",
+      "Action": [
+        "kms:Decrypt"
+      ],
+      "Resource": [
+        "arn:aws:kms:<region>:<account-id>:key/<source-queues-key-id>"
+      ],
+      "Condition": {
+        "StringLike": {
+          "kms:ViaService": "sqs.*.amazonaws.com"
+        }
+      }
+    },
+    {
+      "Sid": "WorkflowEventsConsumerKMSDeadLetterQueues",
+      "Effect": "Allow",
+      "Action": [
+        "kms:GenerateDataKey",
+        "kms:Decrypt"
+      ],
+      "Resource": [
+        "arn:aws:kms:<region>:<account-id>:key/<dead-letter-queues-key-id>"
+      ],
+      "Condition": {
+        "StringLike": {
+          "kms:ViaService": "sqs.*.amazonaws.com"
+        }
+      }
+    }
+  ]
+}
