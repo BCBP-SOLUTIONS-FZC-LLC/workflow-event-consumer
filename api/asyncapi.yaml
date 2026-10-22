@@ -1,0 +1,254 @@
+asyncapi: 3.0.0
+info:
+  title: workflow-events-consumer events
+  version: 1.0.0
+  description: >
+    Inbound only. The shared Workflow-Events Consumer receives events from the
+    queues below and forwards each original message body, unmodified, over HTTP
+    to the services listed in each message's x-targets. A 2xx answer acknowledges
+    the message; 400, 413 and 422 are permanent and send the message to the
+    queue's dead-letter queue after one delivery; every other answer is retried
+    until the receive threshold. This service publishes no events.
+
+channels:
+  iam/membership:
+    address: membership-workflow-q
+    description: >
+      Organisation and Membership events from the iam-membership-events topic. The queue's subscription filter in Organisation and Membership's AsyncAPI delivers TenderAssigneeOverridden, DepartmentMembershipGranted, DepartmentMembershipRevoked, DepartmentMembershipLevelChanged and TenantStateChanged. MembershipRevoked and TenantMembershipsPurged are required by the Definition and Execution services and are outside that filter until it is extended.
+    bindings:
+      sqs:
+        queue:
+          name: membership-workflow-q
+          fifoQueue: false
+          redrivePolicy:
+            deadLetterQueue:
+              name: membership-workflow-q-dlq
+    x-topic: iam-membership-events
+    messages:
+      TenderAssigneeOverridden: { $ref: '#/components/messages/TenderAssigneeOverridden' }
+      DepartmentMembershipGranted: { $ref: '#/components/messages/DepartmentMembershipGranted' }
+      DepartmentMembershipRevoked: { $ref: '#/components/messages/DepartmentMembershipRevoked' }
+      DepartmentMembershipLevelChanged: { $ref: '#/components/messages/DepartmentMembershipLevelChanged' }
+      TenantStateChanged: { $ref: '#/components/messages/TenantStateChanged' }
+      MembershipRevoked: { $ref: '#/components/messages/MembershipRevoked' }
+      TenantMembershipsPurged: { $ref: '#/components/messages/TenantMembershipsPurged' }
+  iam/user:
+    address: user-wf-q
+    description: >
+      User Profile events from the iam-user-events topic, filtered to UserAvailabilityChanged and UserDeleted.
+    bindings:
+      sqs:
+        queue:
+          name: user-wf-q
+          fifoQueue: false
+          redrivePolicy:
+            deadLetterQueue:
+              name: user-wf-q-dlq
+    x-topic: iam-user-events
+    messages:
+      UserAvailabilityChanged: { $ref: '#/components/messages/UserAvailabilityChanged' }
+      UserDeleted: { $ref: '#/components/messages/UserDeleted' }
+  iam/delegation:
+    address: delegation-workflow-q
+    description: >
+      Delegation events from the iam.delegation.events topic. The producer encodes the payload through its schema registry, so the envelope carries a dataschema and a string payload; the consumer forwards the original body and the Execution Service decodes it.
+    bindings:
+      sqs:
+        queue:
+          name: delegation-workflow-q
+          fifoQueue: false
+          redrivePolicy:
+            deadLetterQueue:
+              name: delegation-workflow-q-dlq
+    x-topic: iam.delegation.events
+    messages:
+      DelegationStarted: { $ref: '#/components/messages/DelegationStarted' }
+      DelegationEnded: { $ref: '#/components/messages/DelegationEnded' }
+  wf/workflow/dash:
+    address: wf-workflow-dash-q
+    description: >
+      Execution Service lifecycle events from the wf-workflow-events topic, filtered to the eleven types the Stream Gateway renders. WorkflowTaskCreated is also routed to the Execution Service, which dispatches connector tasks from it.
+    bindings:
+      sqs:
+        queue:
+          name: wf-workflow-dash-q
+          fifoQueue: false
+          redrivePolicy:
+            deadLetterQueue:
+              name: wf-workflow-dash-q-dlq
+    x-topic: wf-workflow-events
+    messages:
+      WorkflowTaskCreated: { $ref: '#/components/messages/WorkflowTaskCreated' }
+      WorkflowTaskCompleted: { $ref: '#/components/messages/WorkflowTaskCompleted' }
+      WorkflowTaskDeferred: { $ref: '#/components/messages/WorkflowTaskDeferred' }
+      WorkflowTaskReassigned: { $ref: '#/components/messages/WorkflowTaskReassigned' }
+      WorkflowTaskSlaWarning: { $ref: '#/components/messages/WorkflowTaskSlaWarning' }
+      WorkflowTaskSlaBreached: { $ref: '#/components/messages/WorkflowTaskSlaBreached' }
+      WorkflowInstancePaused: { $ref: '#/components/messages/WorkflowInstancePaused' }
+      WorkflowInstanceResumed: { $ref: '#/components/messages/WorkflowInstanceResumed' }
+      WorkflowInstanceCancelled: { $ref: '#/components/messages/WorkflowInstanceCancelled' }
+      WorkflowInstanceTerminated: { $ref: '#/components/messages/WorkflowInstanceTerminated' }
+      WorkflowInstanceFinished: { $ref: '#/components/messages/WorkflowInstanceFinished' }
+
+operations:
+  receiveIamMembership:
+    action: receive
+    channel: { $ref: '#/channels/iam~1membership' }
+  receiveIamUser:
+    action: receive
+    channel: { $ref: '#/channels/iam~1user' }
+  receiveIamDelegation:
+    action: receive
+    channel: { $ref: '#/channels/iam~1delegation' }
+  receiveWfWorkflowDash:
+    action: receive
+    channel: { $ref: '#/channels/wf~1workflow~1dash' }
+
+components:
+  messages:
+    DelegationStarted:
+      name: DelegationStarted
+      description: A delegation start. Execution reroutes the delegator's active assignments to the delegate.
+      x-schema-owner: iam-delegation
+      x-targets: [execution]
+      payload: { $ref: '#/components/schemas/Envelope' }
+    DelegationEnded:
+      name: DelegationEnded
+      description: A delegation end. Execution restores the assignments tagged with the delegation.
+      x-schema-owner: iam-delegation
+      x-targets: [execution]
+      payload: { $ref: '#/components/schemas/Envelope' }
+    TenantStateChanged:
+      name: TenantStateChanged
+      description: The resolved tenant lifecycle relay. Execution pauses, resumes or terminates the tenant's instances; for a status of offboarded Definition records the tenant for the purge of its templates and credentials and ignores every other status.
+      x-schema-owner: iam-org-membership
+      x-targets: [execution, definition]
+      payload: { $ref: '#/components/schemas/Envelope' }
+    UserDeleted:
+      name: UserDeleted
+      description: A user deletion. Execution vacates the user's active assignments.
+      x-schema-owner: iam-user-profile
+      x-targets: [execution]
+      payload: { $ref: '#/components/schemas/Envelope' }
+    UserAvailabilityChanged:
+      name: UserAvailabilityChanged
+      description: An out-of-office change. Execution pauses or resumes the user's instances.
+      x-schema-owner: iam-user-profile
+      x-targets: [execution]
+      payload: { $ref: '#/components/schemas/Envelope' }
+    DepartmentMembershipRevoked:
+      name: DepartmentMembershipRevoked
+      description: A department membership removal. Definition invalidates templates the user is a default assignee on.
+      x-schema-owner: iam-org-membership
+      x-targets: [definition]
+      payload: { $ref: '#/components/schemas/Envelope' }
+    MembershipRevoked:
+      name: MembershipRevoked
+      description: A user removed from a tenant. Definition invalidates their default assignments and Execution vacates their active assignments.
+      x-schema-owner: iam-org-membership
+      x-targets: [definition, execution]
+      x-delivery: requested
+      payload: { $ref: '#/components/schemas/Envelope' }
+    TenantMembershipsPurged:
+      name: TenantMembershipsPurged
+      description: The tenant offboarding cascade signal. Execution terminates the tenant's non-terminal instances and Definition records the tenant for the purge of its templates and credentials.
+      x-schema-owner: iam-org-membership
+      x-targets: [execution, definition]
+      x-delivery: requested
+      payload: { $ref: '#/components/schemas/Envelope' }
+    WorkflowTaskCreated:
+      name: WorkflowTaskCreated
+      description: An Execution Service lifecycle event rendered by the Stream Gateway. Execution dispatches connector tasks from it.
+      x-schema-owner: workflow-execution-service
+      x-targets: [workflow-stream-gateway, execution]
+      payload: { $ref: '#/components/schemas/Envelope' }
+    WorkflowTaskCompleted:
+      name: WorkflowTaskCompleted
+      description: An Execution Service lifecycle event rendered by the Stream Gateway.
+      x-schema-owner: workflow-execution-service
+      x-targets: [workflow-stream-gateway]
+      payload: { $ref: '#/components/schemas/Envelope' }
+    WorkflowTaskDeferred:
+      name: WorkflowTaskDeferred
+      description: An Execution Service lifecycle event rendered by the Stream Gateway.
+      x-schema-owner: workflow-execution-service
+      x-targets: [workflow-stream-gateway]
+      payload: { $ref: '#/components/schemas/Envelope' }
+    WorkflowTaskReassigned:
+      name: WorkflowTaskReassigned
+      description: An Execution Service lifecycle event rendered by the Stream Gateway.
+      x-schema-owner: workflow-execution-service
+      x-targets: [workflow-stream-gateway]
+      payload: { $ref: '#/components/schemas/Envelope' }
+    WorkflowTaskSlaWarning:
+      name: WorkflowTaskSlaWarning
+      description: An Execution Service lifecycle event rendered by the Stream Gateway.
+      x-schema-owner: workflow-execution-service
+      x-targets: [workflow-stream-gateway]
+      payload: { $ref: '#/components/schemas/Envelope' }
+    WorkflowTaskSlaBreached:
+      name: WorkflowTaskSlaBreached
+      description: An Execution Service lifecycle event rendered by the Stream Gateway.
+      x-schema-owner: workflow-execution-service
+      x-targets: [workflow-stream-gateway]
+      payload: { $ref: '#/components/schemas/Envelope' }
+    WorkflowInstancePaused:
+      name: WorkflowInstancePaused
+      description: An Execution Service lifecycle event rendered by the Stream Gateway.
+      x-schema-owner: workflow-execution-service
+      x-targets: [workflow-stream-gateway]
+      payload: { $ref: '#/components/schemas/Envelope' }
+    WorkflowInstanceResumed:
+      name: WorkflowInstanceResumed
+      description: An Execution Service lifecycle event rendered by the Stream Gateway.
+      x-schema-owner: workflow-execution-service
+      x-targets: [workflow-stream-gateway]
+      payload: { $ref: '#/components/schemas/Envelope' }
+    WorkflowInstanceCancelled:
+      name: WorkflowInstanceCancelled
+      description: An Execution Service lifecycle event rendered by the Stream Gateway.
+      x-schema-owner: workflow-execution-service
+      x-targets: [workflow-stream-gateway]
+      payload: { $ref: '#/components/schemas/Envelope' }
+    WorkflowInstanceTerminated:
+      name: WorkflowInstanceTerminated
+      description: An Execution Service lifecycle event rendered by the Stream Gateway.
+      x-schema-owner: workflow-execution-service
+      x-targets: [workflow-stream-gateway]
+      payload: { $ref: '#/components/schemas/Envelope' }
+    WorkflowInstanceFinished:
+      name: WorkflowInstanceFinished
+      description: An Execution Service lifecycle event rendered by the Stream Gateway.
+      x-schema-owner: workflow-execution-service
+      x-targets: [workflow-stream-gateway]
+      payload: { $ref: '#/components/schemas/Envelope' }
+    TenderAssigneeOverridden:
+      name: TenderAssigneeOverridden
+      description: A tender assignee override. Execution applies overrides through its node-override endpoint, so the event is dropped.
+      x-schema-owner: iam-org-membership
+      x-targets: []
+      payload: { $ref: '#/components/schemas/Envelope' }
+    DepartmentMembershipGranted:
+      name: DepartmentMembershipGranted
+      description: A department membership grant. Eligibility is a live call, so the event is dropped.
+      x-schema-owner: iam-org-membership
+      x-targets: []
+      payload: { $ref: '#/components/schemas/Envelope' }
+    DepartmentMembershipLevelChanged:
+      name: DepartmentMembershipLevelChanged
+      description: A department level change. Eligibility is a live call, so the event is dropped.
+      x-schema-owner: iam-org-membership
+      x-targets: []
+      payload: { $ref: '#/components/schemas/Envelope' }
+  schemas:
+    Envelope:
+      type: object
+      required: [id, type, source]
+      description: The platform event envelope; the payload schema is owned by the producing service.
+      properties:
+        id: { type: string }
+        type: { type: string }
+        source: { type: string }
+        tenant_id: { type: string }
+        dataschema: { type: string }
+        payload: {}

@@ -1,0 +1,19 @@
+# Default: platform-engineers own the whole repo (same team as
+# execution_service/definition_service — this bridge exists for them).
+* @BCBP-SOLUTIONS-FZC-LLC/platform-engineers
+
+# Workflow and repo configuration changes require explicit sign-off.
+.github/workflows/ @BCBP-SOLUTIONS-FZC-LLC/platform-engineers
+.github/dependabot.yml @BCBP-SOLUTIONS-FZC-LLC/platform-engineers
+Makefile @BCBP-SOLUTIONS-FZC-LLC/platform-engineers
+Dockerfile @BCBP-SOLUTIONS-FZC-LLC/platform-engineers
+docker-compose.yml @BCBP-SOLUTIONS-FZC-LLC/platform-engineers
+
+# The routing/topology contract — misconfiguring this misroutes or drops
+# events for both downstream services, not just this repo.
+config/topology.example.yaml @BCBP-SOLUTIONS-FZC-LLC/platform-engineers
+config/topology.local.yaml @BCBP-SOLUTIONS-FZC-LLC/platform-engineers
+internal/topology/ @BCBP-SOLUTIONS-FZC-LLC/platform-engineers
+
+# Kubernetes deployment and IAM permissions.
+deploy/ @BCBP-SOLUTIONS-FZC-LLC/platform-engineers

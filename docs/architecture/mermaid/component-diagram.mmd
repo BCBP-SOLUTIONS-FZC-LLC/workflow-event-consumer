@@ -1,0 +1,51 @@
+graph TD
+    subgraph cmd["Composition Root — cmd/event-consumer/"]
+        main["main.go\nload config · register metrics\nbuild deps · start consumers\ngraceful shutdown (SIGINT/SIGTERM → drain)"]
+        deps["deps.go\nbuildDeps — loads topology.yaml,\nwires Forwarder + N SQS consumers"]
+        health["health.go\n/healthz · /metrics (promhttp)"]
+    end
+
+    subgraph topology["internal/topology/"]
+        topoload["load.go — Load(path) config/topology.yaml\nvalidate: unique names, routes reference\nonly declared targets"]
+        resolve["resolve.go — ResolveTargets(appEnv, os.Getenv)\nreads each target's tokenEnv"]
+    end
+
+    subgraph consumer["internal/consumer/"]
+        queue["queue.go\nQueueSpec · Options · Build\n(wraps events.NewSQSConsumer)"]
+        handler["handler.go\nMakeHandler — marshal envelope,\nresolve targets via Router, forward, ack/no-ack"]
+        routing["routing.go\nRouter — built from topology.Config.Routes\nResolve(eventType) → target names"]
+    end
+
+    subgraph forwarder["internal/forwarder/"]
+        fwd["forwarder.go\nForwarder — concurrent fan-out to\nnamed targets, all-or-nothing result"]
+        target["target.go\nTarget — single HTTP POST\n/internal/events + x-internal-token"]
+    end
+
+    subgraph observability["internal/observability/"]
+        metrics["metrics.go\nRegister() — forward_total,\nforward_duration_seconds,\nhandler_duration_seconds"]
+    end
+
+    subgraph external["External"]
+        yaml["config/topology.yaml\n(queues, targets, routes)"]
+        sqs["SQS queues\n(one per topology.yaml entry)"]
+        exec["execution_service\nPOST /internal/events"]
+        def["definition_service\nPOST /internal/events"]
+    end
+
+    yaml --> topoload
+    deps --> topoload
+    topoload --> resolve
+    resolve --> fwd
+    sqs --> queue
+    main --> deps
+    deps --> queue
+    deps --> routing
+    main --> health
+    queue --> handler
+    handler --> routing
+    handler --> fwd
+    fwd --> target
+    target --> exec
+    target --> def
+    handler --> metrics
+    fwd --> metrics

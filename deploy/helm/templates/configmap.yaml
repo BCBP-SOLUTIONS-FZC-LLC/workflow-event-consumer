@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "workflow-events-consumer.fullname" . }}-topology
+  labels:
+    {{- include "workflow-events-consumer.labels" . | nindent 4 }}
+data:
+  topology.yaml: |
+    {{- toYaml .Values.topology | nindent 4 }}

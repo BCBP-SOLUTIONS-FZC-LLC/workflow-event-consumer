@@ -1,0 +1,126 @@
+image:
+  repository: ghcr.io/bcbp-solutions-fzc-llc/workflow-events-consumer
+  tag: ""  # defaults to .Chart.AppVersion
+  pullPolicy: IfNotPresent
+
+replicaCount: 2
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi
+
+autoscaling:
+  enabled: false
+  minReplicas: 2
+  maxReplicas: 6
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 75
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+service:
+  port: 8082
+
+terminationGracePeriodSeconds: 90
+
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}  # e.g. eks.amazonaws.com/role-arn: arn:aws:iam::<account>:role/workflow-events-consumer
+
+# Non-secret settings — merged with .env below into the container's environment.
+env:
+  APP_ENV: prod
+  AWS_REGION: us-east-1
+  TOPOLOGY_CONFIG_PATH: /etc/event-consumer/topology.yaml
+  CONSUMER_CONCURRENCY: "10"
+  VISIBILITY_TIMEOUT: 30s
+  DRAIN_TIMEOUT: 30s
+  FORWARD_TIMEOUT: 5s
+  HANDLER_TIMEOUT: 20s
+  RETRY_BACKOFF_BASE: 30s
+  RETRY_BACKOFF_MAX: 5m
+  MAX_RECEIVE_COUNT: "4"
+  RECEIVE_STALL_WINDOW: 2m
+  QUEUE_DEPTH_INTERVAL: 30s
+  OTEL_SERVICE_NAME: workflow-events-consumer
+  OTEL_EXPORTER_OTLP_ENDPOINT: ""
+  OTEL_EXPORTER_OTLP_INSECURE: "false"
+  OTEL_TRACES_SAMPLER_RATIO: "1.0"
+
+# The queue/target/routing registry — rendered verbatim into a ConfigMap and
+# mounted at env.TOPOLOGY_CONFIG_PATH. Same shape as config/topology.example.yaml.
+# Override per-environment via a values-<env>.yaml file.
+topology:
+  version: 1
+  targets:
+    - name: execution
+      addr: http://workflow-execution-service-api:8080
+      tokenEnv: EXECUTION_SERVICE_TOKEN
+      pathPrefix: /api/v1/internal/events
+    - name: definition
+      addr: http://workflow-definition-service:8080
+      tokenEnv: DEFINITION_SERVICE_TOKEN
+      pathPrefix: /api/v1/internal/events
+    - name: workflow-stream-gateway
+      addr: http://workflow-stream-gateway:8080
+      tokenEnv: WORKFLOW_STREAM_GATEWAY_TOKEN
+      pathPrefix: /api/v1/internal/events
+  queues:
+    - name: membership
+      url: https://sqs.us-east-1.amazonaws.com/000000000000/membership-workflow-q
+    - name: user
+      url: https://sqs.us-east-1.amazonaws.com/000000000000/user-wf-q
+    - name: delegation
+      url: https://sqs.us-east-1.amazonaws.com/000000000000/delegation-workflow-q
+    - name: dashboard
+      url: https://sqs.us-east-1.amazonaws.com/000000000000/wf-workflow-dash-q
+  routes:
+    DelegationStarted: [execution]
+    DelegationEnded: [execution]
+    TenantStateChanged: [execution, definition]
+    UserDeleted: [execution]
+    UserAvailabilityChanged: [execution]
+    DepartmentMembershipRevoked: [definition]
+    MembershipRevoked: [definition, execution]
+    TenantMembershipsPurged: [execution, definition]
+    WorkflowTaskCreated: [workflow-stream-gateway, execution]
+    WorkflowTaskCompleted: [workflow-stream-gateway]
+    WorkflowTaskDeferred: [workflow-stream-gateway]
+    WorkflowTaskReassigned: [workflow-stream-gateway]
+    WorkflowTaskSlaWarning: [workflow-stream-gateway]
+    WorkflowTaskSlaBreached: [workflow-stream-gateway]
+    WorkflowInstancePaused: [workflow-stream-gateway]
+    WorkflowInstanceResumed: [workflow-stream-gateway]
+    WorkflowInstanceCancelled: [workflow-stream-gateway]
+    WorkflowInstanceTerminated: [workflow-stream-gateway]
+    WorkflowInstanceFinished: [workflow-stream-gateway]
+    TenderAssigneeOverridden: []
+    DepartmentMembershipGranted: []
+    DepartmentMembershipLevelChanged: []
+
+# Real values MUST come from an existingSecret in production — secretValues
+# below end up in Helm release history as plain base64 if used directly.
+# Keys here are read as env vars, matching each topology.yaml target's tokenEnv.
+existingSecret: ""
+secretValues:
+  EXECUTION_SERVICE_TOKEN: ""
+  DEFINITION_SERVICE_TOKEN: ""
+  WORKFLOW_STREAM_GATEWAY_TOKEN: ""
+
+networkPolicy:
+  enabled: true
+  monitoringNamespace: monitoring
+  targetPorts: [8080]
+  additionalEgressRules: []
+
+serviceMonitor:
+  enabled: true
+  namespace: ""
+  interval: 30s

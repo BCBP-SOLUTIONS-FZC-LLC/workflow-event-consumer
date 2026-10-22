@@ -1,0 +1,36 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "WorkflowEventsConsumerSQSConsume",
+      "Effect": "Allow",
+      "Action": [
+        "sqs:ReceiveMessage",
+        "sqs:DeleteMessage",
+        "sqs:ChangeMessageVisibility",
+        "sqs:GetQueueAttributes"
+      ],
+      "Resource": [
+        "arn:aws:sqs:*:*:membership-workflow-q",
+        "arn:aws:sqs:*:*:user-wf-q",
+        "arn:aws:sqs:*:*:delegation-workflow-q",
+        "arn:aws:sqs:*:*:wf-workflow-dash-q"
+      ]
+    },
+    {
+      "Sid": "WorkflowEventsConsumerSQSDeadLetter",
+      "Effect": "Allow",
+      "Action": [
+        "sqs:GetQueueUrl",
+        "sqs:SendMessage",
+        "sqs:GetQueueAttributes"
+      ],
+      "Resource": [
+        "arn:aws:sqs:*:*:membership-workflow-q-dlq",
+        "arn:aws:sqs:*:*:user-wf-q-dlq",
+        "arn:aws:sqs:*:*:delegation-workflow-q-dlq",
+        "arn:aws:sqs:*:*:wf-workflow-dash-q-dlq"
+      ]
+    }
+  ]
+}

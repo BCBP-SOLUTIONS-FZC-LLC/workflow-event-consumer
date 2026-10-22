@@ -1,3 +1,13 @@
+/bin/
+/.tools/
+/.coverage/
+.go_private_token
+*.log
+
+# Ops-provided, environment-specific — config/topology.example.yaml is the
+# checked-in template; config/topology.local.yaml (docker-compose) is
+# checked in too since it only points at throwaway local containers.
+/config/topology.yaml
 # If you prefer the allow list template instead of the deny list, see community template:
 # https://github.com/github/gitignore/blob/main/community/Golang/Go.AllowList.gitignore
 #
@@ -30,3 +40,4 @@ go.work.sum
 # Editor/IDE
 # .idea/
 # .vscode/
+.smoke-go-private-token.*

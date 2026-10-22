@@ -1,0 +1,104 @@
+groups:
+  - name: workflow-events-consumer
+    rules:
+      - alert: WorkflowEventsConsumerForwardErrors
+        expr: |
+          sum by (target) (rate(workflow_events_consumer_forward_total{result="error"}[5m])) > 0
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "workflow-events-consumer forwarding errors to {{ $labels.target }}"
+          description: >
+            Sustained forward failures to target "{{ $labels.target }}" for 10m —
+            that downstream service is failing or unreachable; messages for its
+            routed queue(s) will keep redelivering until it recovers or the consumer's
+            receive threshold (MAX_RECEIVE_COUNT) dead-letters them. See docs/runbook.md.
+
+      - alert: WorkflowEventsConsumerHandlerLatencyHigh
+        expr: |
+          histogram_quantile(0.99, sum by (le, queue) (rate(workflow_events_consumer_handler_duration_seconds_bucket[5m]))) > 5
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "workflow-events-consumer p99 handler latency high on queue {{ $labels.queue }}"
+          description: >
+            p99 handler duration for queue "{{ $labels.queue }}" has exceeded 5s for
+            10m — either a downstream target is slow, or queue depth is outpacing
+            CONSUMER_CONCURRENCY.
+
+      - alert: WorkflowEventsConsumerDown
+        expr: up{job=~".*workflow-events-consumer"} == 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "workflow-events-consumer is down"
+          description: "No successful /metrics scrape for 5m — the bridge may not be consuming any queue."
+
+      - alert: WorkflowEventsConsumerMessagesFailing
+        expr: |
+          sum by (queue, reason) (rate(platform_messages_failed_total{job=~".*workflow-events-consumer"}[5m])) > 0
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "workflow-events-consumer messages failing on queue {{ $labels.queue }}"
+          description: >
+            Messages on queue "{{ $labels.queue }}" have failed processing for 10m
+            (reason "{{ $labels.reason }}"). Failed messages are redelivered with backoff
+            until the consumer's receive threshold (MAX_RECEIVE_COUNT) moves them to the dead-letter queue.
+
+      - alert: WorkflowEventsConsumerDeadLettered
+        expr: |
+          sum by (event_type, reason) (increase(platform_dlq_messages_total{job=~".*workflow-events-consumer", operation="consume"}[5m])) > 0
+        labels:
+          severity: page
+        annotations:
+          summary: "workflow-events-consumer dead-lettered {{ $labels.event_type }} ({{ $labels.reason }})"
+          description: "A message exhausted its deliveries or was malformed and moved to the dead-letter queue. See docs/runbook.md."
+
+      - alert: WorkflowEventsConsumerHTTPPanic
+        expr: increase(platform_http_panics_total{job=~".*workflow-events-consumer"}[5m]) > 0
+        labels:
+          severity: critical
+        annotations:
+          summary: "A workflow-events-consumer HTTP handler panicked"
+          description: "The health and metrics server recovered a panic. Check the logs for the stack trace."
+
+      - alert: WorkflowEventsConsumerReceiveFailing
+        expr: |
+          sum(rate(platform_dependency_request_seconds_count{dependency="sqs", operation="receive_message", outcome="error"}[5m])) > 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "workflow-events-consumer cannot receive from SQS"
+          description: >
+            ReceiveMessage has been failing for 5m, so no queue is being consumed. Check the
+            role's SQS permissions, the queue URLs and AWS_REGION. The pod also fails its
+            health check after the receive stall window.
+
+      - alert: WorkflowEventsConsumerQueueBacklog
+        expr: |
+          max by (queue) (platform_queue_depth) > 1000
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "workflow-events-consumer backlog on queue {{ $labels.queue }}"
+          description: "Queue \"{{ $labels.queue }}\" has held more than 1000 messages for 15m. Check target health and CONSUMER_CONCURRENCY."
+
+      - alert: WorkflowEventsConsumerDeadLetterBacklog
+        expr: |
+          max by (queue) (platform_dlq_depth) > 0
+        for: 5m
+        labels:
+          severity: page
+        annotations:
+          summary: "workflow-events-consumer dead-letter queue of {{ $labels.queue }} is not empty"
+          description: >
+            The dead-letter queue behind "{{ $labels.queue }}" holds messages. This also covers
+            messages SQS moved itself because the queue's redrive count is at or below the
+            consumer's receive threshold. See docs/runbook.md.

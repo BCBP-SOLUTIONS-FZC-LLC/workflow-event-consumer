@@ -1,0 +1,39 @@
+sequenceDiagram
+    participant SQS as SQS queue
+    participant C as consumer.Build
+    participant H as handler.MakeHandler
+    participant F as forwarder.Forward
+    participant T1 as target A
+    participant T2 as target B
+
+    Note over H,F: event routes to 2 targets (unknown type fallback,<br/>or a future multi-target route)
+
+    SQS->>C: ReceiveMessage (attempt 1)
+    C->>H: handler(ctx, envelope)
+    H->>F: Forward(ctx, queue, [A,B], body)
+    par concurrent
+        F->>T1: POST /internal/events
+        T1-->>F: 200
+    and
+        F->>T2: POST /internal/events
+        T2-->>F: 500
+    end
+    F-->>H: error (not all targets succeeded)
+    H-->>C: error
+    Note over C,SQS: message NOT deleted — stays invisible until\nvisibility timeout, then redelivers
+
+    SQS->>C: ReceiveMessage (attempt 2, after visibility timeout)
+    C->>H: handler(ctx, envelope)
+    H->>F: Forward(ctx, queue, [A,B], body)
+    par concurrent
+        F->>T1: POST /internal/events
+        T1-->>F: 200 (idempotent no-op — already processed)
+    and
+        F->>T2: POST /internal/events
+        T2-->>F: 200 (now recovered)
+    end
+    F-->>H: nil
+    H-->>C: nil
+    C->>SQS: DeleteMessage (ack)
+
+    Note over SQS: after the receive threshold (4) of consecutive failures,<br/>the consumer moves the message to that queue's DLQ on the fifth receive

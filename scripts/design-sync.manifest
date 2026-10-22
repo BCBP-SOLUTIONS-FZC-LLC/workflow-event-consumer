@@ -1,0 +1,3 @@
+# <kind> <repo path> <design path>; see scripts/design-sync-check.sh
+lld docs/lld/workflow_event_consumer.md LLD/workflow_event_consumer.md
+raw api/asyncapi.yaml LLD/workflow_event_consumer_asyncapi.yaml

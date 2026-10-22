@@ -1,0 +1,20 @@
+sequenceDiagram
+    participant SNS
+    participant SQS as SQS queue
+    participant C as consumer.Build (per-queue)
+    participant H as handler.MakeHandler
+    participant R as consumer.Router
+    participant F as forwarder.Forward
+    participant T as one resolved target
+
+    SNS->>SQS: publish event
+    SQS->>C: long-poll ReceiveMessage
+    C->>H: handler(ctx, envelope)
+    H->>R: Resolve(envelope.Type)
+    R-->>H: [target names]
+    H->>F: Forward(ctx, queue, targets, body)
+    F->>T: POST /internal/events (x-internal-token)
+    T-->>F: 2xx
+    F-->>H: nil (all resolved targets succeeded)
+    H-->>C: nil
+    C->>SQS: DeleteMessage (ack)

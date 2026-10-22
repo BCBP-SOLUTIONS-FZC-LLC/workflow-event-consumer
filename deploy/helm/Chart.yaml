@@ -1,0 +1,6 @@
+apiVersion: v2
+name: workflow-events-consumer
+description: Stateless SNS -> SQS -> HTTP bridge forwarding events to execution_service and definition_service
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
