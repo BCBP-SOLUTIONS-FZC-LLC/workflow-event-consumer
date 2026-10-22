@@ -64,8 +64,6 @@ channels:
     messages:
       DelegationStarted: { $ref: '#/components/messages/DelegationStarted' }
       DelegationEnded: { $ref: '#/components/messages/DelegationEnded' }
-      DelegationReviewRequested: { $ref: '#/components/messages/DelegationReviewRequested' }
-      DelegationEscalationRequested: { $ref: '#/components/messages/DelegationEscalationRequested' }
   wf/workflow/dash:
     address: wf-workflow-dash-q
     description: >
@@ -223,18 +221,6 @@ components:
       description: An Execution Service lifecycle event rendered by the Stream Gateway.
       x-schema-owner: workflow-execution-service
       x-targets: [workflow-stream-gateway]
-      payload: { $ref: '#/components/schemas/Envelope' }
-    DelegationReviewRequested:
-      name: DelegationReviewRequested
-      description: A delegation review request. No Workflow service consumes it, so the event is dropped.
-      x-schema-owner: iam-delegation
-      x-targets: []
-      payload: { $ref: '#/components/schemas/Envelope' }
-    DelegationEscalationRequested:
-      name: DelegationEscalationRequested
-      description: A delegation escalation request. No Workflow service consumes it, so the event is dropped.
-      x-schema-owner: iam-delegation
-      x-targets: []
       payload: { $ref: '#/components/schemas/Envelope' }
     TenderAssigneeOverridden:
       name: TenderAssigneeOverridden

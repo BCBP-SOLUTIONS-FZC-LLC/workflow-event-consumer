@@ -99,12 +99,6 @@ routes:
   WorkflowInstanceTerminated: [workflow-stream-gateway]
   WorkflowInstanceFinished: [workflow-stream-gateway]
 
-  # IAM's delegation service publishes four types to iam.delegation.events,
-  # delivered to delegation-workflow-q. Execution acts on Started and Ended;
-  # no Workflow service consumes the review and escalation requests.
-  DelegationReviewRequested: []
-  DelegationEscalationRequested: []
-
   # Delivered by the membership-workflow-q filter policy, deliberately not consumed.
   # TenderAssigneeOverridden: per IAM's topology its only consumers are Audit
   # and Notification — Workflow applies the override synchronously through

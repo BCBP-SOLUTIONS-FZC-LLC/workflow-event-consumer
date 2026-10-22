@@ -101,8 +101,6 @@ topology:
     WorkflowInstanceCancelled: [workflow-stream-gateway]
     WorkflowInstanceTerminated: [workflow-stream-gateway]
     WorkflowInstanceFinished: [workflow-stream-gateway]
-    DelegationReviewRequested: []
-    DelegationEscalationRequested: []
     TenderAssigneeOverridden: []
     DepartmentMembershipGranted: []
     DepartmentMembershipLevelChanged: []

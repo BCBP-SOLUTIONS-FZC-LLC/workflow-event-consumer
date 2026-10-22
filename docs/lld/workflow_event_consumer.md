@@ -25,6 +25,7 @@
 | 1.3 | 2026-10-14 | **In-cluster targets over HTTP, liveness apart from readiness, and the answers the consumer reads** (§4 items 2, 5 and 8, register item 12). A target address is https, or http naming a port, outside `dev` and `local`; the chart points at the services' plain HTTP port 8080 and the NetworkPolicy opens it. `/healthz` is liveness and `/readyz` follows the receive watch. A `502 EVENT_DECODE_FAILED` from a target is a transient failure like any 5xx: retried, then dead-lettered by the receive count. The SNS subscriptions into the queues must use raw message delivery, as `platform-events` requires. The forward client drains a bounded part of each answer so connections are reused. |
 | 1.4 | 2026-10-18 | **The tenant offboarding events also reach the Definition Service** (§3, §5). `TenantStateChanged` and `TenantMembershipsPurged` were routed to Execution alone, so a departed tenant's templates and credentials stayed. Both are routed to the Definition Service as well, which records the tenant for a purge after a retention period (Definition LLD §7.4.4, §7.4.6); the category path rule stays Execution-only, so Definition receives them on its single events path. |
 | 1.5 | 2026-10-19 | **The receive threshold and the stall window are settings, and the retry span is stated as it is** (§4 items 6 and 8). The threshold was a constant and the stall window a constant, so a different downstream outage budget needed a code change; they are `MAX_RECEIVE_COUNT` (default 4) and `RECEIVE_STALL_WINDOW` (default two minutes), defaults unchanged. The text said the retries spread over about seven minutes and covered a rolling deploy; with the library dead-lettering a message whose receive count exceeds the threshold, a message is handled four times, the last at 210 seconds, and dead-lettered on the fifth receive at 450 seconds, so the outage survived is about three and a half minutes (seven and a half with a threshold of 5, which needs the queues' redrive count raised first). |
+| 1.6 | 2026-10-22 | **IAM's queue filters are settled** (§2, §3.2, Appendix B). Organisation and Membership adds `MembershipRevoked` and `TenantMembershipsPurged` to `membership-workflow-q`'s filter (its LLD rev 2.34), and the Delegation Service approved `delegation-workflow-q` filtered to `DelegationStarted` and `DelegationEnded` (its LLD rev 2.23). The delegation review and escalation requests no longer reach the queue, so their routes are removed. |
 
 ---
 
@@ -80,9 +81,9 @@ Logs, metrics and traces go through `platform-gincommon`. Every queue receive, d
 
 | Queue | Topic | Owner of the queue | Subscription filter |
 | --- | --- | --- | --- |
-| `membership-workflow-q` | `iam-membership-events` | Workflow | `TenderAssigneeOverridden`, `DepartmentMembershipGranted`, `DepartmentMembershipRevoked`, `DepartmentMembershipLevelChanged`, `TenantStateChanged` (IAM Organisation and Membership AsyncAPI) |
+| `membership-workflow-q` | `iam-membership-events` | Workflow | `TenderAssigneeOverridden`, `DepartmentMembershipGranted`, `DepartmentMembershipRevoked`, `DepartmentMembershipLevelChanged`, `TenantStateChanged`, `MembershipRevoked`, `TenantMembershipsPurged` (IAM Organisation and Membership AsyncAPI) |
 | `user-wf-q` | `iam-user-events` | Workflow | `UserAvailabilityChanged`, `UserDeleted` (IAM User Profile AsyncAPI) |
-| `delegation-workflow-q` | `iam.delegation.events` | Workflow | `DelegationStarted`, `DelegationEnded`, `DelegationReviewRequested`, `DelegationEscalationRequested` (Appendix B, item 2) |
+| `delegation-workflow-q` | `iam.delegation.events` | Workflow | `DelegationStarted`, `DelegationEnded` (IAM Delegation LLD rev 2.23: the subscription filter, with raw message delivery) |
 | `wf-workflow-dash-q` | `wf-workflow-events` | Workflow | The eleven types of §3.2 that the Stream Gateway renders (Stream Gateway LLD §3.2) |
 
 Every queue has a dead-letter queue named `<queue>-dlq` and a redrive count of 5.
@@ -104,8 +105,6 @@ An event type absent from the topology's routes is sent to every target that acc
 | `UserAvailabilityChanged` | `iam-user-events` | `user-wf-q` | execution | An out-of-office change. Execution pauses or resumes the user's instances. |
 | `DelegationStarted` | `iam.delegation.events` | `delegation-workflow-q` | execution | A delegation start. Execution reroutes the delegator's active assignments to the delegate. |
 | `DelegationEnded` | `iam.delegation.events` | `delegation-workflow-q` | execution | A delegation end. Execution restores the assignments tagged with the delegation. |
-| `DelegationReviewRequested` | `iam.delegation.events` | `delegation-workflow-q` | none (dropped) | A delegation review request. No Workflow service consumes it, so the event is dropped. |
-| `DelegationEscalationRequested` | `iam.delegation.events` | `delegation-workflow-q` | none (dropped) | A delegation escalation request. No Workflow service consumes it, so the event is dropped. |
 | `WorkflowTaskCreated` | `wf-workflow-events` | `wf-workflow-dash-q` | workflow-stream-gateway, execution | An Execution Service lifecycle event rendered by the Stream Gateway. Execution dispatches connector tasks from it. |
 | `WorkflowTaskCompleted` | `wf-workflow-events` | `wf-workflow-dash-q` | workflow-stream-gateway | An Execution Service lifecycle event rendered by the Stream Gateway. |
 | `WorkflowTaskDeferred` | `wf-workflow-events` | `wf-workflow-dash-q` | workflow-stream-gateway | An Execution Service lifecycle event rendered by the Stream Gateway. |
@@ -223,8 +222,8 @@ Unit tests cover routing, failure classification, the handler's dead-letter deci
 
 | # | Item | Owner |
 | --- | --- | --- |
-| 1 | `MembershipRevoked` and `TenantMembershipsPurged` are outside `membership-workflow-q`'s subscription filter in IAM Organisation and Membership's AsyncAPI. The Definition and Execution services act on both, so the queue's filter needs both types. | IAM Organisation and Membership |
-| 2 | `delegation-workflow-q` and its subscription to `iam.delegation.events`, filtered to the delegation types, are to be provisioned. The Execution Service LLD §6.2 places `DelegationStarted` and `DelegationEnded` on `iam.membership.events`; the producer publishes them to `iam.delegation.events`. | Workflow infrastructure, IAM Delegation |
+| ~~1~~ | ~~`MembershipRevoked` and `TenantMembershipsPurged` are outside `membership-workflow-q`'s subscription filter in IAM Organisation and Membership's AsyncAPI.~~ RESOLVED (rev 1.6): Organisation and Membership LLD rev 2.34 adds both to the filter. The production subscription filter is infrastructure provisioning. | IAM Organisation and Membership |
+| 2 | `delegation-workflow-q` and its dead-letter queue (redrive count 5) are to be provisioned, with the subscription to `iam.delegation.events` that the Delegation Service approved in its LLD rev 2.23: raw message delivery, filtered to `DelegationStarted` and `DelegationEnded`, and a queue policy allowing `sqs:SendMessage` from the topic. | Workflow infrastructure |
 | 3 | The dead-letter queue name `wf-workflow-dash-q-dlq` follows the `<queue>-dlq` convention and is unconfirmed. The dashboard queue's filter policy is infrastructure provisioning (Stream Gateway LLD Appendix B). | Workflow infrastructure |
 | 4 | ~~The Workflow HLD §9.1 and the Execution Service LLD §6.2 state that no subscription filter policy exists, and the Execution Service AsyncAPI lists `MembershipRevoked` under the user topic.~~ RESOLVED (rev 1.1 — the HLD §9.1, the Execution LLD rev 1.76 and the Execution AsyncAPI follow IAM's per-queue filters, the delegation topic and the membership topic). | Workflow documents |
 | 5 | Pod autoscaling is CPU and memory based and off by default; scaling on queue depth is an infrastructure option. No admission policy enforces the Cosign signature and the chart deploys by tag. | Workflow infrastructure |
