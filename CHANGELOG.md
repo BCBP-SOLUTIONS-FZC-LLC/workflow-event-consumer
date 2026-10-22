@@ -10,6 +10,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- A `Smoke tests` CI job, one of the checks the organisation requires: `make smoke-test` builds the images, starts the docker-compose stack, waits for the consumer to become ready and checks that an event published to SNS reaches only the target its route names. The mock target accepts the paths the consumer forwards to (it answered only `/internal/events`).
 - IAM settled both queue filters: `membership-workflow-q` delivers `MembershipRevoked` and `TenantMembershipsPurged`, and `delegation-workflow-q` delivers only `DelegationStarted` and `DelegationEnded`. The routes and AsyncAPI messages for the delegation review and escalation requests, which no longer reach the queue, are removed (LLD rev 1.6).
 - The module requires Go 1.26.10: `govulncheck` reports GO-2026-6809 (`crypto/x509`) on 1.26.9; the base image digest follows.
 - The receive threshold and the stall window are settings, `MAX_RECEIVE_COUNT` (default 4, at least 1) and `RECEIVE_STALL_WINDOW` (default 2m), defaults unchanged; they are in the chart values and `.env.example`. The threshold must stay below every queue's redrive count (infrastructure-owned). The docs said the retries spread over about seven minutes: a message is handled at 0, 30 s, 90 s and 210 s and dead-lettered on the fifth receive at 450 s, so a target outage of about three and a half minutes is survived (about seven and a half with a threshold of 5, after the queues' redrive count is raised). LLD rev 1.5.

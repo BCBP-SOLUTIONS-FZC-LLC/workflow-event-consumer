@@ -123,10 +123,28 @@ jobs:
           severity: HIGH,CRITICAL
           cache-dir: .trivy-cache
 
+  smoke-tests:
+    name: Smoke tests
+    needs: [ci-gate, build-image-cache]
+    if: needs.ci-gate.outputs.run == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+          token: ${{ secrets.CI_REPO_READ_TOKEN || github.token }}
+
+      - name: Smoke test the docker-compose stack
+        env:
+          GO_PRIVATE_TOKEN: ${{ secrets.GO_PRIVATE_TOKEN }}
+        run: bash scripts/smoke-test.sh
+
   pr-summary:
     name: PR summary
     if: always() && github.event_name == 'pull_request'
-    needs: [ci-gate, validate-quality, validate-test, build-image-cache, trivy-cve-scan]
+    needs: [ci-gate, validate-quality, validate-test, build-image-cache, trivy-cve-scan, smoke-tests]
     runs-on: ubuntu-latest
     steps:
-      - run: echo "validate-quality, validate-test, the image build and the Trivy scan are the gates for this repo (ci-gate run=${{ needs.ci-gate.outputs.run }})"
+      - run: echo "validate-quality, validate-test, the image build, the Trivy scan and the smoke test are the gates for this repo (ci-gate run=${{ needs.ci-gate.outputs.run }})"

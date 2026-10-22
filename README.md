@@ -147,7 +147,7 @@ Every series carries `domain` (`workflow`), `service` (`workflow-events-consumer
 
 ## CI
 
-Pull requests and pushes run `ci.yml`: a `ci-gate` job skips draft pull requests and those labelled `skip-ci`, then `validate-quality` and `validate-test`, and an image job that lints the Dockerfile, builds the image and scans it with Trivy for fixable HIGH and CRITICAL findings. Pull requests that change only Markdown or `docs/` skip CI. `changelog-check.yml` requires a CHANGELOG entry on pull requests that touch code or configuration.
+Pull requests and pushes run `ci.yml`: a `ci-gate` job skips draft pull requests and those labelled `skip-ci`, then `validate-quality` and `validate-test`, and an image job that lints the Dockerfile, builds the image and scans it with Trivy for fixable HIGH and CRITICAL findings, and a smoke test (`make smoke-test`) that starts the docker-compose stack, waits for the consumer to become ready and checks that an event published to SNS reaches only the target its route names. Pull requests that change only Markdown or `docs/` skip CI. `changelog-check.yml` requires a CHANGELOG entry on pull requests that touch code or configuration.
 
 ## Versioning and releases
 

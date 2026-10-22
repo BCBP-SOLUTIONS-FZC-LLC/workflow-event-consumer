@@ -266,6 +266,10 @@ docker-lint:
 docker-trivy:
 	$(TRIVY) fs . --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1
 
+## smoke-test: Build the images, start the docker-compose stack and check one event end to end (requires GO_PRIVATE_TOKEN in env)
+smoke-test:
+	bash scripts/smoke-test.sh
+
 ## docker-check: Dockerfile lint + dependency CVE scan (no image build required)
 docker-check: docker-lint docker-trivy
 	@echo "✓ all container checks passed"
@@ -278,7 +282,7 @@ clean:
 help:
 	@grep -E '^## ' Makefile | sed 's/## /  /'
 
-.PHONY: design-sync-check design-sync-check-test
+.PHONY: design-sync-check design-sync-check-test smoke-test
 
 ## design-sync-check: Fail if a document kept in the design repository too differs (DESIGN_DIR=<checkout> reads it locally, else GH_TOKEN reads Haroon-BCBP/design)
 design-sync-check:
