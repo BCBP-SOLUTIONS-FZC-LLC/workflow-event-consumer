@@ -8,7 +8,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 : "${GO_PRIVATE_TOKEN:?GO_PRIVATE_TOKEN is required to build the images}"
-token_file=$(mktemp)
+token_file=$(mktemp "$PWD/.smoke-go-private-token.XXXXXX")
 printf '%s' "$GO_PRIVATE_TOKEN" >"$token_file"
 export GO_PRIVATE_TOKEN_FILE="$token_file"
 
