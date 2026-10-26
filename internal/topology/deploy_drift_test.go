@@ -198,3 +198,20 @@ func TestAlertsSelectTheChartsJobName(t *testing.T) {
 	assert.Contains(t, alerts, "WorkflowEventsConsumerDeadLetterBacklog")
 	assert.NotContains(t, alerts, "by (queue) (increase(platform_dlq_messages_total", "that series carries no queue label")
 }
+
+func TestChartAdmitsPrometheusFromThePlatformObservabilityNamespace(t *testing.T) {
+	raw, err := os.ReadFile("../../deploy/helm/values.yaml")
+	require.NoError(t, err)
+	var values struct {
+		NetworkPolicy struct {
+			ObservabilityNamespace string `yaml:"observabilityNamespace"`
+		} `yaml:"networkPolicy"`
+	}
+	require.NoError(t, yaml.Unmarshal(raw, &values))
+
+	assert.Equal(t, "observability", values.NetworkPolicy.ObservabilityNamespace, "the platform's Prometheus namespace is observability")
+
+	policy, err := os.ReadFile("../../deploy/helm/templates/networkpolicy.yaml")
+	require.NoError(t, err)
+	assert.Contains(t, string(policy), ".Values.networkPolicy.observabilityNamespace", "the NetworkPolicy reads that value")
+}

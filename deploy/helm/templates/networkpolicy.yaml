@@ -13,7 +13,7 @@ spec:
     - Ingress
     - Egress
   ingress:
-    # Same-namespace pods (service-to-service) and the monitoring namespace's
+    # Same-namespace pods (service-to-service) and the observability namespace's
     # Prometheus, scraping /metrics only. This service serves no other
     # inbound HTTP surface.
     - from:
@@ -24,7 +24,7 @@ spec:
     - from:
         - namespaceSelector:
             matchLabels:
-              kubernetes.io/metadata.name: {{ .Values.networkPolicy.monitoringNamespace }}
+              kubernetes.io/metadata.name: {{ .Values.networkPolicy.observabilityNamespace }}
       ports:
         - port: http
           protocol: TCP

@@ -116,7 +116,7 @@ secretValues:
 
 networkPolicy:
   enabled: true
-  monitoringNamespace: monitoring
+  observabilityNamespace: observability
   targetPorts: [8080]
   additionalEgressRules: []
 
