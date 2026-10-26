@@ -10,6 +10,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- `make docker-lint` and the CI image job run `scripts/dockerfile-credentials-check.sh`, which fails when a `RUN` that uses a build secret does not end with `trap '... rm -f ~/.git-credentials ...' EXIT`, when a `RUN` is a heredoc, or when a workflow uses a registry build cache.
 - The NetworkPolicy admits Prometheus from the platform namespace `observability` (value `networkPolicy.observabilityNamespace`, formerly `monitoringNamespace: monitoring`); a test holds the value and its use.
 - `platform-events/v2` is `v2.2.1`: a message whose handler dead-letter send failed stays on the queue, a failed delete after a dead-letter is retried and remembered so a redelivery is not dead-lettered twice, and the toolchain is Go 1.26.10. platform-events confirmed the handler-side dead-letter pattern, its single count by reason and the permission set (LLD rev 1.7, Appendix B item 7).
 - `deploy/aws/policy-kms.json` holds the KMS statements for queues with a customer-managed key (decrypt on the source queues' key; generate-data-key and decrypt on the dead-letter queues' key, through SQS only); the IAM README, the README and the security notes no longer say the service never touches KMS, and a test requires both statements. The runbook states that a dead-letter queue can hold two copies of one message and that a redrive is safe because targets deduplicate on the envelope `id`.
