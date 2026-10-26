@@ -69,6 +69,27 @@ func TestIAMPolicyCoversEveryQueueAndItsDeadLetterQueue(t *testing.T) {
 	assert.ElementsMatch(t, []string{"sqs:GetQueueUrl", "sqs:SendMessage", "sqs:GetQueueAttributes"}, actions["WorkflowEventsConsumerSQSDeadLetter"])
 }
 
+func TestIAMKMSPolicyCoversTheSourceAndDeadLetterKeys(t *testing.T) {
+	raw, err := os.ReadFile("../../deploy/aws/policy-kms.json")
+	require.NoError(t, err, "a role whose queues use a customer-managed key needs a KMS statement")
+	var policy struct {
+		Statement []struct {
+			Sid       string                       `json:"Sid"`
+			Action    []string                     `json:"Action"`
+			Condition map[string]map[string]string `json:"Condition"`
+		} `json:"Statement"`
+	}
+	require.NoError(t, json.Unmarshal(raw, &policy))
+
+	actions := map[string][]string{}
+	for _, st := range policy.Statement {
+		actions[st.Sid] = st.Action
+		assert.Contains(t, st.Condition["StringLike"]["kms:ViaService"], "sqs.", "%s is limited to use through SQS", st.Sid)
+	}
+	assert.ElementsMatch(t, []string{"kms:Decrypt"}, actions["WorkflowEventsConsumerKMSSourceQueues"], "receiving from an encrypted queue needs decrypt")
+	assert.ElementsMatch(t, []string{"kms:GenerateDataKey", "kms:Decrypt"}, actions["WorkflowEventsConsumerKMSDeadLetterQueues"], "sending to an encrypted dead-letter queue needs both")
+}
+
 func queueNames(c Config) []string {
 	names := make([]string, len(c.Queues))
 	for i, q := range c.Queues {
@@ -176,4 +197,21 @@ func TestAlertsSelectTheChartsJobName(t *testing.T) {
 	assert.NotRegexp(t, `job="`, alerts, "the ServiceMonitor's job is <release>-workflow-events-consumer, which an exact match never selects")
 	assert.Contains(t, alerts, "WorkflowEventsConsumerDeadLetterBacklog")
 	assert.NotContains(t, alerts, "by (queue) (increase(platform_dlq_messages_total", "that series carries no queue label")
+}
+
+func TestChartAdmitsPrometheusFromThePlatformObservabilityNamespace(t *testing.T) {
+	raw, err := os.ReadFile("../../deploy/helm/values.yaml")
+	require.NoError(t, err)
+	var values struct {
+		NetworkPolicy struct {
+			ObservabilityNamespace string `yaml:"observabilityNamespace"`
+		} `yaml:"networkPolicy"`
+	}
+	require.NoError(t, yaml.Unmarshal(raw, &values))
+
+	assert.Equal(t, "observability", values.NetworkPolicy.ObservabilityNamespace, "the platform's Prometheus namespace is observability")
+
+	policy, err := os.ReadFile("../../deploy/helm/templates/networkpolicy.yaml")
+	require.NoError(t, err)
+	assert.Contains(t, string(policy), ".Values.networkPolicy.observabilityNamespace", "the NetworkPolicy reads that value")
 }

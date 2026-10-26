@@ -139,7 +139,7 @@ Every series carries `domain` (`workflow`), `service` (`workflow-events-consumer
 ## Security
 
 - Each target has its own token, sent as `x-internal-token`; outside dev and local startup fails if any target's token is missing.
-- The IAM role can only consume SQS; it never publishes and never touches S3, KMS or Glue.
+- The IAM role can only consume SQS and send dead-letters; it never publishes and never touches S3 or Glue. With customer-managed queue keys it also needs the KMS statements in `deploy/aws/policy-kms.json`.
 - The health server serves `/healthz`, `/readyz` and `/metrics` only, with read, write and idle timeouts. `/healthz` is liveness and answers while the process serves. `/readyz` answers 503 until the first SQS receive has succeeded and again when none has succeeded for `RECEIVE_STALL_WINDOW` (two minutes by default), so a consumer that cannot receive is taken out of service; the chart's liveness probe does not follow it, since a restart cannot fix an SQS or STS outage.
 - Container: distroless, non-root, read-only root filesystem, all capabilities dropped.
 
