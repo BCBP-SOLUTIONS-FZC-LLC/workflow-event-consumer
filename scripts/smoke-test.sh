@@ -40,7 +40,8 @@ body=$(printf '{"id":"%s","type":"DepartmentMembershipRevoked","source":"iam","t
   "$id" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$(uuidgen)" "$(uuidgen)" "$(uuidgen)")
 docker compose exec -T localstack awslocal sns publish --region us-east-1 \
   --topic-arn arn:aws:sns:us-east-1:000000000000:iam-membership-events \
-  --message "$body" >/dev/null
+  --message "$body" \
+  --message-attributes '{"EventType":{"DataType":"String","StringValue":"DepartmentMembershipRevoked"}}' >/dev/null
 
 for _ in $(seq 1 30); do
   if docker compose logs --no-color mock-definition | grep -q "received event id=$id"; then
