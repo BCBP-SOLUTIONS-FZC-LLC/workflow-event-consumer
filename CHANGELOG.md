@@ -10,6 +10,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- The LocalStack init script and the integration fixture subscribe each queue with the approved `EventType` filter, so locally an event outside a queue's filter does not arrive; tests that exercise forwarding of off-filter or malformed bodies send them straight to the queue (LLD rev 1.8).
+- Every alert carries a `runbook` annotation naming its section of `docs/runbook.md`; a test holds every link to a real section.
+- The copy of Execution's internal spec is at `f53ed5d` (the `NOT_FOUND` code).
 - `make docker-lint` and the CI image job run `scripts/dockerfile-credentials-check.sh`, which fails when a `RUN` that uses a build secret does not end with `trap '... rm -f ~/.git-credentials ...' EXIT`, when a `RUN` is a heredoc, or when a workflow uses a registry build cache.
 - The NetworkPolicy admits Prometheus from the platform namespace `observability` (value `networkPolicy.observabilityNamespace`, formerly `monitoringNamespace: monitoring`); a test holds the value and its use.
 - `platform-events/v2` is `v2.2.1`: a message whose handler dead-letter send failed stays on the queue, a failed delete after a dead-letter is retried and remembered so a redelivery is not dead-lettered twice, and the toolchain is Go 1.26.10. platform-events confirmed the handler-side dead-letter pattern, its single count by reason and the permission set (LLD rev 1.7, Appendix B item 7).

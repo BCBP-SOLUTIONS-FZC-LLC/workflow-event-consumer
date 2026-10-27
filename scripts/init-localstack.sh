@@ -7,7 +7,7 @@ set -euo pipefail
 REGION=us-east-1
 
 create_topology() {
-  local topic_name="$1" queue_name="$2" dlq_name="$3"
+  local topic_name="$1" queue_name="$2" dlq_name="$3" events="$4"
 
   awslocal sqs create-queue --queue-name "$dlq_name" --region "$REGION" >/dev/null
   local dlq_arn
@@ -37,18 +37,22 @@ create_topology() {
   topic_arn=$(awslocal sns create-topic --name "$topic_name" --region "$REGION" \
     --query 'TopicArn' --output text)
 
+  local filter_policy subscribe_attrs
+  filter_policy=$(printf '{"EventType":[%s]}' "$events")
+  subscribe_attrs=$(printf '{"RawMessageDelivery":"true","FilterPolicy":"%s"}' "$(printf '%s' "$filter_policy" | sed 's/"/\\"/g')")
   awslocal sns subscribe \
     --topic-arn "$topic_arn" \
     --protocol sqs \
     --notification-endpoint "$queue_arn" \
-    --attributes RawMessageDelivery=true \
+    --attributes "$subscribe_attrs" \
     --region "$REGION" >/dev/null
 
   echo "provisioned $topic_name -> $queue_name (+ $dlq_name)"
 }
 
-create_topology iam-membership-events membership-workflow-q membership-workflow-q-dlq
-create_topology iam-user-events user-wf-q user-wf-q-dlq
-create_topology iam.delegation.events delegation-workflow-q delegation-workflow-q-dlq
+create_topology iam-membership-events membership-workflow-q membership-workflow-q-dlq \
+  '"TenderAssigneeOverridden","DepartmentMembershipGranted","DepartmentMembershipRevoked","DepartmentMembershipLevelChanged","TenantStateChanged","MembershipRevoked","TenantMembershipsPurged"'
+create_topology iam-user-events user-wf-q user-wf-q-dlq '"UserAvailabilityChanged","UserDeleted"'
+create_topology iam.delegation.events delegation-workflow-q delegation-workflow-q-dlq '"DelegationStarted","DelegationEnded"'
 
 echo "LocalStack topology ready."

@@ -14,7 +14,7 @@ channels:
   iam/membership:
     address: membership-workflow-q
     description: >
-      Organisation and Membership events from the iam-membership-events topic. The queue's subscription filter in Organisation and Membership's AsyncAPI delivers TenderAssigneeOverridden, DepartmentMembershipGranted, DepartmentMembershipRevoked, DepartmentMembershipLevelChanged and TenantStateChanged. MembershipRevoked and TenantMembershipsPurged are required by the Definition and Execution services and are outside that filter until it is extended.
+      Organisation and Membership events from the iam-membership-events topic. The queue's subscription filter in Organisation and Membership's AsyncAPI delivers TenderAssigneeOverridden, DepartmentMembershipGranted, DepartmentMembershipRevoked, DepartmentMembershipLevelChanged and TenantStateChanged. MembershipRevoked and TenantMembershipsPurged are in that filter too, for the Definition and Execution services.
     bindings:
       sqs:
         queue:
