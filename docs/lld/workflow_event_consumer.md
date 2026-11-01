@@ -28,6 +28,7 @@
 | 1.6 | 2026-10-22 | **IAM's queue filters are settled** (§2, §3.2, Appendix B). Organisation and Membership adds `MembershipRevoked` and `TenantMembershipsPurged` to `membership-workflow-q`'s filter (its LLD rev 2.34), and the Delegation Service approved `delegation-workflow-q` filtered to `DelegationStarted` and `DelegationEnded` (its LLD rev 2.23). The delegation review and escalation requests no longer reach the queue, so their routes are removed. |
 | 1.7 | 2026-10-22 | **platform-events confirmed the dead-letter pattern** (§8, Appendix B). The handler-side dead-letter, its single count by reason, the threshold rule and the permission set are as built; Appendix B item 7 is resolved. The consumer moves to platform-events v2.2.1. The permission paragraph adds decrypt on the source queues' key for customer-managed encryption, and states that an SNS-fed queue cannot use the AWS-managed SQS key. |
 | 1.8 | 2026-10-27 | **The local stack filters as production does, and every alert names its runbook section** (§3.1, §3.2, §8). The LocalStack subscriptions carried no filter, so locally every event on a topic arrived; they now use the approved `EventType` filters. `MembershipRevoked` and `TenantMembershipsPurged` are inside the membership queue's filter (rev 1.6), which two rows still contradicted. Definition marks a returned tenant on any other `TenantStateChanged` status. Each alert carries a `runbook` annotation naming its section of the runbook. |
+| 1.9 | 2026-11-01 | **The dashboard queue carries the Execution Service's full catalog** (§3.1, §3.2, §3.4). The queue's filter and the routes listed eleven of the 18 event types. `WorkflowTaskClaimed`, `WorkflowTaskSuperseded`, `WorkflowTaskFailed`, `WorkflowInstanceDegraded` and `WorkflowInstanceFailed` now route to the Stream Gateway, which makes sixteen; `WorkflowInstanceStarted` and `WorkflowInstanceForceRouted` carry an empty route. The Execution Service adds `started_by_user_id` to the degraded and failed events so the gateway can route them. |
 
 ---
 
@@ -86,7 +87,7 @@ Logs, metrics and traces go through `platform-gincommon`. Every queue receive, d
 | `membership-workflow-q` | `iam-membership-events` | Workflow | `TenderAssigneeOverridden`, `DepartmentMembershipGranted`, `DepartmentMembershipRevoked`, `DepartmentMembershipLevelChanged`, `TenantStateChanged`, `MembershipRevoked`, `TenantMembershipsPurged` (IAM Organisation and Membership AsyncAPI) |
 | `user-wf-q` | `iam-user-events` | Workflow | `UserAvailabilityChanged`, `UserDeleted` (IAM User Profile AsyncAPI) |
 | `delegation-workflow-q` | `iam.delegation.events` | Workflow | `DelegationStarted`, `DelegationEnded` (IAM Delegation LLD rev 2.23: the subscription filter, with raw message delivery) |
-| `wf-workflow-dash-q` | `wf-workflow-events` | Workflow | The eleven types of §3.2 that the Stream Gateway renders (Stream Gateway LLD §3.2) |
+| `wf-workflow-dash-q` | `wf-workflow-events` | Workflow | The sixteen types of §3.2 that the Stream Gateway renders (Stream Gateway LLD §3.2) |
 
 Every queue has a dead-letter queue named `<queue>-dlq` and a redrive count of 5. The local stack and the integration tests subscribe each queue with the same filter on the `EventType` message attribute, so locally an event outside a queue's filter does not arrive either.
 
@@ -108,16 +109,23 @@ An event type absent from the topology's routes is sent to every target that acc
 | `DelegationStarted` | `iam.delegation.events` | `delegation-workflow-q` | execution | A delegation start. Execution reroutes the delegator's active assignments to the delegate. |
 | `DelegationEnded` | `iam.delegation.events` | `delegation-workflow-q` | execution | A delegation end. Execution restores the assignments tagged with the delegation. |
 | `WorkflowTaskCreated` | `wf-workflow-events` | `wf-workflow-dash-q` | workflow-stream-gateway, execution | An Execution Service lifecycle event rendered by the Stream Gateway. Execution dispatches connector tasks from it. |
+| `WorkflowTaskClaimed` | `wf-workflow-events` | `wf-workflow-dash-q` | workflow-stream-gateway | An Execution Service lifecycle event rendered by the Stream Gateway. |
 | `WorkflowTaskCompleted` | `wf-workflow-events` | `wf-workflow-dash-q` | workflow-stream-gateway | An Execution Service lifecycle event rendered by the Stream Gateway. |
 | `WorkflowTaskDeferred` | `wf-workflow-events` | `wf-workflow-dash-q` | workflow-stream-gateway | An Execution Service lifecycle event rendered by the Stream Gateway. |
 | `WorkflowTaskReassigned` | `wf-workflow-events` | `wf-workflow-dash-q` | workflow-stream-gateway | An Execution Service lifecycle event rendered by the Stream Gateway. |
+| `WorkflowTaskSuperseded` | `wf-workflow-events` | `wf-workflow-dash-q` | workflow-stream-gateway | An Execution Service lifecycle event rendered by the Stream Gateway. |
+| `WorkflowTaskFailed` | `wf-workflow-events` | `wf-workflow-dash-q` | workflow-stream-gateway | An Execution Service lifecycle event rendered by the Stream Gateway. |
 | `WorkflowTaskSlaWarning` | `wf-workflow-events` | `wf-workflow-dash-q` | workflow-stream-gateway | An Execution Service lifecycle event rendered by the Stream Gateway. |
 | `WorkflowTaskSlaBreached` | `wf-workflow-events` | `wf-workflow-dash-q` | workflow-stream-gateway | An Execution Service lifecycle event rendered by the Stream Gateway. |
 | `WorkflowInstancePaused` | `wf-workflow-events` | `wf-workflow-dash-q` | workflow-stream-gateway | An Execution Service lifecycle event rendered by the Stream Gateway. |
 | `WorkflowInstanceResumed` | `wf-workflow-events` | `wf-workflow-dash-q` | workflow-stream-gateway | An Execution Service lifecycle event rendered by the Stream Gateway. |
 | `WorkflowInstanceCancelled` | `wf-workflow-events` | `wf-workflow-dash-q` | workflow-stream-gateway | An Execution Service lifecycle event rendered by the Stream Gateway. |
 | `WorkflowInstanceTerminated` | `wf-workflow-events` | `wf-workflow-dash-q` | workflow-stream-gateway | An Execution Service lifecycle event rendered by the Stream Gateway. |
+| `WorkflowInstanceDegraded` | `wf-workflow-events` | `wf-workflow-dash-q` | workflow-stream-gateway | An Execution Service lifecycle event rendered by the Stream Gateway. |
+| `WorkflowInstanceFailed` | `wf-workflow-events` | `wf-workflow-dash-q` | workflow-stream-gateway | An Execution Service lifecycle event rendered by the Stream Gateway. |
 | `WorkflowInstanceFinished` | `wf-workflow-events` | `wf-workflow-dash-q` | workflow-stream-gateway | An Execution Service lifecycle event rendered by the Stream Gateway. |
+| `WorkflowInstanceStarted` | `wf-workflow-events` | `wf-workflow-dash-q` | none (dropped) | The creating client knows the start synchronously, so the dashboard does not render it. The queue's filter excludes it and the route drops it if it ever arrives. |
+| `WorkflowInstanceForceRouted` | `wf-workflow-events` | `wf-workflow-dash-q` | none (dropped) | An operator-facing event the dashboard does not render. The queue's filter excludes it and the route drops it if it ever arrives. |
 
 ### 3.3 Execution Service paths
 
@@ -136,7 +144,7 @@ The Definition Service and the Stream Gateway receive every event on the base ev
 
 IAM publishes `TenantRoleGranted`, `TenantRoleRevoked`, `MFAReset`, `TenantSeatOverageStarted`, `TenantSeatOverageResolved`, `UserProvisioned`, `UserUpdated` and the tenant lifecycle events on other topics (`iam-tenant-events` and the billing topic) for the Audit, AuthZ, Notification, Realm, Billing and Delegation consumers. None is delivered to a Workflow queue.
 
-The Execution Service publishes `WorkflowInstanceStarted`, `WorkflowInstanceDegraded`, `WorkflowInstanceFailed`, `WorkflowInstanceForceRouted`, `WorkflowTaskClaimed`, `WorkflowTaskSuperseded` and `WorkflowTaskFailed` to `wf-workflow-events` for the audit, notification, Tender and LLM consumers. The dashboard queue's filter excludes them.
+The Execution Service publishes 18 event types to `wf-workflow-events` for the audit, notification, Tender, LLM and dashboard consumers. The dashboard queue's filter delivers 16 of them (§3.2). `WorkflowInstanceStarted` and `WorkflowInstanceForceRouted` are excluded by the filter and carry an empty route, so a widened filter drops them instead of broadcasting them.
 
 ---
 

@@ -23,6 +23,7 @@ channels:
           redrivePolicy:
             deadLetterQueue:
               name: membership-workflow-q-dlq
+            maxReceiveCount: 5
     x-topic: iam-membership-events
     messages:
       TenderAssigneeOverridden: { $ref: '#/components/messages/TenderAssigneeOverridden' }
@@ -44,6 +45,7 @@ channels:
           redrivePolicy:
             deadLetterQueue:
               name: user-wf-q-dlq
+            maxReceiveCount: 5
     x-topic: iam-user-events
     messages:
       UserAvailabilityChanged: { $ref: '#/components/messages/UserAvailabilityChanged' }
@@ -60,6 +62,7 @@ channels:
           redrivePolicy:
             deadLetterQueue:
               name: delegation-workflow-q-dlq
+            maxReceiveCount: 5
     x-topic: iam.delegation.events
     messages:
       DelegationStarted: { $ref: '#/components/messages/DelegationStarted' }
@@ -67,7 +70,7 @@ channels:
   wf/workflow/dash:
     address: wf-workflow-dash-q
     description: >
-      Execution Service lifecycle events from the wf-workflow-events topic, filtered to the eleven types the Stream Gateway renders. WorkflowTaskCreated is also routed to the Execution Service, which dispatches connector tasks from it.
+      Execution Service lifecycle events from the wf-workflow-events topic, filtered to the sixteen types the Stream Gateway renders. The two remaining Execution Service types, WorkflowInstanceStarted and WorkflowInstanceForceRouted, are dropped if they ever arrive. WorkflowTaskCreated is also routed to the Execution Service, which dispatches connector tasks from it.
     bindings:
       sqs:
         queue:
@@ -76,19 +79,27 @@ channels:
           redrivePolicy:
             deadLetterQueue:
               name: wf-workflow-dash-q-dlq
+            maxReceiveCount: 5
     x-topic: wf-workflow-events
     messages:
       WorkflowTaskCreated: { $ref: '#/components/messages/WorkflowTaskCreated' }
+      WorkflowTaskClaimed: { $ref: '#/components/messages/WorkflowTaskClaimed' }
       WorkflowTaskCompleted: { $ref: '#/components/messages/WorkflowTaskCompleted' }
       WorkflowTaskDeferred: { $ref: '#/components/messages/WorkflowTaskDeferred' }
       WorkflowTaskReassigned: { $ref: '#/components/messages/WorkflowTaskReassigned' }
+      WorkflowTaskSuperseded: { $ref: '#/components/messages/WorkflowTaskSuperseded' }
+      WorkflowTaskFailed: { $ref: '#/components/messages/WorkflowTaskFailed' }
       WorkflowTaskSlaWarning: { $ref: '#/components/messages/WorkflowTaskSlaWarning' }
       WorkflowTaskSlaBreached: { $ref: '#/components/messages/WorkflowTaskSlaBreached' }
       WorkflowInstancePaused: { $ref: '#/components/messages/WorkflowInstancePaused' }
       WorkflowInstanceResumed: { $ref: '#/components/messages/WorkflowInstanceResumed' }
       WorkflowInstanceCancelled: { $ref: '#/components/messages/WorkflowInstanceCancelled' }
       WorkflowInstanceTerminated: { $ref: '#/components/messages/WorkflowInstanceTerminated' }
+      WorkflowInstanceDegraded: { $ref: '#/components/messages/WorkflowInstanceDegraded' }
+      WorkflowInstanceFailed: { $ref: '#/components/messages/WorkflowInstanceFailed' }
       WorkflowInstanceFinished: { $ref: '#/components/messages/WorkflowInstanceFinished' }
+      WorkflowInstanceStarted: { $ref: '#/components/messages/WorkflowInstanceStarted' }
+      WorkflowInstanceForceRouted: { $ref: '#/components/messages/WorkflowInstanceForceRouted' }
 
 operations:
   receiveIamMembership:
@@ -221,6 +232,48 @@ components:
       description: An Execution Service lifecycle event rendered by the Stream Gateway.
       x-schema-owner: workflow-execution-service
       x-targets: [workflow-stream-gateway]
+      payload: { $ref: '#/components/schemas/Envelope' }
+    WorkflowTaskClaimed:
+      name: WorkflowTaskClaimed
+      description: An Execution Service lifecycle event rendered by the Stream Gateway.
+      x-schema-owner: workflow-execution-service
+      x-targets: [workflow-stream-gateway]
+      payload: { $ref: '#/components/schemas/Envelope' }
+    WorkflowTaskSuperseded:
+      name: WorkflowTaskSuperseded
+      description: An Execution Service lifecycle event rendered by the Stream Gateway.
+      x-schema-owner: workflow-execution-service
+      x-targets: [workflow-stream-gateway]
+      payload: { $ref: '#/components/schemas/Envelope' }
+    WorkflowTaskFailed:
+      name: WorkflowTaskFailed
+      description: An Execution Service lifecycle event rendered by the Stream Gateway.
+      x-schema-owner: workflow-execution-service
+      x-targets: [workflow-stream-gateway]
+      payload: { $ref: '#/components/schemas/Envelope' }
+    WorkflowInstanceDegraded:
+      name: WorkflowInstanceDegraded
+      description: An Execution Service lifecycle event rendered by the Stream Gateway.
+      x-schema-owner: workflow-execution-service
+      x-targets: [workflow-stream-gateway]
+      payload: { $ref: '#/components/schemas/Envelope' }
+    WorkflowInstanceFailed:
+      name: WorkflowInstanceFailed
+      description: An Execution Service lifecycle event rendered by the Stream Gateway.
+      x-schema-owner: workflow-execution-service
+      x-targets: [workflow-stream-gateway]
+      payload: { $ref: '#/components/schemas/Envelope' }
+    WorkflowInstanceStarted:
+      name: WorkflowInstanceStarted
+      description: An Execution Service lifecycle event the creating client already knows synchronously, so the dashboard does not render it. Dropped if it arrives.
+      x-schema-owner: workflow-execution-service
+      x-targets: []
+      payload: { $ref: '#/components/schemas/Envelope' }
+    WorkflowInstanceForceRouted:
+      name: WorkflowInstanceForceRouted
+      description: An Execution Service lifecycle event for operators, so the dashboard does not render it. Dropped if it arrives.
+      x-schema-owner: workflow-execution-service
+      x-targets: []
       payload: { $ref: '#/components/schemas/Envelope' }
     TenderAssigneeOverridden:
       name: TenderAssigneeOverridden

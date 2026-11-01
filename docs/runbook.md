@@ -15,16 +15,23 @@ The `routes` map of [`config/topology.example.yaml`](../config/topology.example.
 | `MembershipRevoked` | definition, execution |
 | `TenantMembershipsPurged` | execution, definition |
 | `WorkflowTaskCreated` | workflow-stream-gateway, execution |
+| `WorkflowTaskClaimed` | workflow-stream-gateway |
 | `WorkflowTaskCompleted` | workflow-stream-gateway |
 | `WorkflowTaskDeferred` | workflow-stream-gateway |
 | `WorkflowTaskReassigned` | workflow-stream-gateway |
+| `WorkflowTaskSuperseded` | workflow-stream-gateway |
+| `WorkflowTaskFailed` | workflow-stream-gateway |
 | `WorkflowTaskSlaWarning` | workflow-stream-gateway |
 | `WorkflowTaskSlaBreached` | workflow-stream-gateway |
 | `WorkflowInstancePaused` | workflow-stream-gateway |
 | `WorkflowInstanceResumed` | workflow-stream-gateway |
 | `WorkflowInstanceCancelled` | workflow-stream-gateway |
 | `WorkflowInstanceTerminated` | workflow-stream-gateway |
+| `WorkflowInstanceDegraded` | workflow-stream-gateway |
+| `WorkflowInstanceFailed` | workflow-stream-gateway |
 | `WorkflowInstanceFinished` | workflow-stream-gateway |
+| `WorkflowInstanceStarted` | dropped |
+| `WorkflowInstanceForceRouted` | dropped |
 | `TenderAssigneeOverridden` | dropped |
 | `DepartmentMembershipGranted` | dropped |
 | `DepartmentMembershipLevelChanged` | dropped |

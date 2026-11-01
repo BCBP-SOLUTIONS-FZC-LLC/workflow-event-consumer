@@ -53,14 +53,14 @@ queues:
 # of this table are exactly that case: the filter policy of
 # membership-workflow-q delivers them here whether or not anyone wants them.
 #
-# The 11 WorkflowTask* and WorkflowInstance* routes below feed
+# The 16 WorkflowTask* and WorkflowInstance* routes below feed
 # workflow-stream-gateway (design/LLD/workflow_stream_gateway.md §3.1) —
 # the wf-workflow-dash-q SNS filter-policy provisioning that actually
-# delivers those 11 types onto the `dashboard` queue above is
+# delivers those 16 types onto the `dashboard` queue above is
 # infra-provisioning tracked in that LLD's Appendix B, not done by this file.
-# WorkflowInstanceStarted is deliberately absent (decided 2026-08-24):
-# execution_service's own asyncapi.yaml documents it as not routed here —
-# the creating client already knows synchronously.
+# The Execution Service publishes 18 types; WorkflowInstanceStarted (the
+# creating client already knows synchronously) and WorkflowInstanceForceRouted
+# (ops-facing) are dropped explicitly, so a widened filter never broadcasts them.
 #
 # WorkflowTaskCreated also routes to execution — a connector-typed task's
 # dispatch worker only ever receives it through this route, so routing this
@@ -88,16 +88,23 @@ routes:
   # purge of its templates and credentials.
   TenantMembershipsPurged: [execution, definition]
   WorkflowTaskCreated: [workflow-stream-gateway, execution]
+  WorkflowTaskClaimed: [workflow-stream-gateway]
   WorkflowTaskCompleted: [workflow-stream-gateway]
   WorkflowTaskDeferred: [workflow-stream-gateway]
   WorkflowTaskReassigned: [workflow-stream-gateway]
+  WorkflowTaskSuperseded: [workflow-stream-gateway]
+  WorkflowTaskFailed: [workflow-stream-gateway]
   WorkflowTaskSlaWarning: [workflow-stream-gateway]
   WorkflowTaskSlaBreached: [workflow-stream-gateway]
   WorkflowInstancePaused: [workflow-stream-gateway]
   WorkflowInstanceResumed: [workflow-stream-gateway]
   WorkflowInstanceCancelled: [workflow-stream-gateway]
   WorkflowInstanceTerminated: [workflow-stream-gateway]
+  WorkflowInstanceDegraded: [workflow-stream-gateway]
+  WorkflowInstanceFailed: [workflow-stream-gateway]
   WorkflowInstanceFinished: [workflow-stream-gateway]
+  WorkflowInstanceStarted: []
+  WorkflowInstanceForceRouted: []
 
   # Delivered by the membership-workflow-q filter policy, deliberately not consumed.
   # TenderAssigneeOverridden: per IAM's topology its only consumers are Audit

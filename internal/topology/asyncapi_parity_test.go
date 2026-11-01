@@ -90,3 +90,26 @@ func TestAsyncAPIMessagesAreTheTopologyRoutes(t *testing.T) {
 	}
 	assert.False(t, strings.Contains(strings.Join(gotTypes, ","), "."), "event types are PascalCase")
 }
+
+func TestAsyncAPIQueuesDeclareTheRedriveCountOfFive(t *testing.T) {
+	raw, err := os.ReadFile("../../api/asyncapi.yaml")
+	require.NoError(t, err)
+	var spec struct {
+		Channels map[string]struct {
+			Bindings struct {
+				SQS struct {
+					Queue struct {
+						RedrivePolicy struct {
+							MaxReceiveCount int `yaml:"maxReceiveCount"`
+						} `yaml:"redrivePolicy"`
+					} `yaml:"queue"`
+				} `yaml:"sqs"`
+			} `yaml:"bindings"`
+		} `yaml:"channels"`
+	}
+	require.NoError(t, yaml.Unmarshal(raw, &spec))
+	require.NotEmpty(t, spec.Channels)
+	for name, ch := range spec.Channels {
+		assert.Equal(t, 5, ch.Bindings.SQS.Queue.RedrivePolicy.MaxReceiveCount, "channel %s: every queue redrives after five receives", name)
+	}
+}
