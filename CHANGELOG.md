@@ -10,6 +10,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- The copy of the Definition Service's internal contract is refreshed (the example no longer carries a `role` field and the ingest route is no longer called idempotent).
+
 - The dashboard queue carries the Execution Service's full catalog: `WorkflowTaskClaimed`, `WorkflowTaskSuperseded`, `WorkflowTaskFailed`, `WorkflowInstanceDegraded` and `WorkflowInstanceFailed` route to the Stream Gateway (sixteen types), and `WorkflowInstanceStarted` and `WorkflowInstanceForceRouted` carry an empty route. The topology, the chart, the runbook table, the AsyncAPI and the LLD agree (LLD rev 1.9).
 - The AsyncAPI states each queue's redrive count of five, held by a test.
 - The LocalStack init script and the integration fixture subscribe each queue with the approved `EventType` filter, so locally an event outside a queue's filter does not arrive; tests that exercise forwarding of off-filter or malformed bodies send them straight to the queue, and the smoke test publishes with the `EventType` attribute the filter matches on (LLD rev 1.8).
