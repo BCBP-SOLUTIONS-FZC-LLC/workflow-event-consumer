@@ -9,8 +9,8 @@
 | Document Type | Low-Level Design (LLD) |
 | Service | Workflow Events Consumer (`workflow-events-consumer`, repository `workflow-event-consumer`) |
 | Subsystem | Workflow Engine — inbound event delivery |
-| Version | 1.5 |
-| Date | 2026-10-19 |
+| Version | 1.10 |
+| Date | 2026-11-03 |
 | Status | Approved |
 | Audience | Workflow Engine team, IAM, platform/infra |
 | Owner database | None (stateless) |
@@ -29,6 +29,7 @@
 | 1.7 | 2026-10-22 | **platform-events confirmed the dead-letter pattern** (§8, Appendix B). The handler-side dead-letter, its single count by reason, the threshold rule and the permission set are as built; Appendix B item 7 is resolved. The consumer moves to platform-events v2.2.1. The permission paragraph adds decrypt on the source queues' key for customer-managed encryption, and states that an SNS-fed queue cannot use the AWS-managed SQS key. |
 | 1.8 | 2026-10-27 | **The local stack filters as production does, and every alert names its runbook section** (§3.1, §3.2, §8). The LocalStack subscriptions carried no filter, so locally every event on a topic arrived; they now use the approved `EventType` filters. `MembershipRevoked` and `TenantMembershipsPurged` are inside the membership queue's filter (rev 1.6), which two rows still contradicted. Definition marks a returned tenant on any other `TenantStateChanged` status. Each alert carries a `runbook` annotation naming its section of the runbook. |
 | 1.9 | 2026-11-01 | **The dashboard queue carries the Execution Service's full catalog** (§3.1, §3.2, §3.4). The queue's filter and the routes listed eleven of the 18 event types. `WorkflowTaskClaimed`, `WorkflowTaskSuperseded`, `WorkflowTaskFailed`, `WorkflowInstanceDegraded` and `WorkflowInstanceFailed` now route to the Stream Gateway, which makes sixteen; `WorkflowInstanceStarted` and `WorkflowInstanceForceRouted` carry an empty route. The Execution Service adds `started_by_user_id` to the degraded and failed events so the gateway can route them. |
+| 1.10 | 2026-11-03 | **The header matches the revision history** (header). The header still said version 1.5 of 2026-10-19 after rows 1.6 to 1.9. The receive-stall readiness watch now lives in the observability package, the only place that imports the Prometheus client, and `make lint` forbids the platform-library bypasses; behaviour is unchanged. |
 
 ---
 
