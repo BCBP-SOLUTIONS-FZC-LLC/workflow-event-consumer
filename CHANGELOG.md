@@ -10,6 +10,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- Startup and the mock downstream log through the platform logger instead of the standard library `log`, the receive-stall readiness watch lives in `internal/observability` (the only place that imports the Prometheus client), and `make lint` forbids `database/sql`, `log`, `log/slog`, `zap`, the OpenTelemetry SDK and exporters and the Prometheus client outside `internal/observability`, plus direct pool and connection construction.
 - The copy of the Execution Service's internal contract is refreshed (the `TENANT_MISMATCH` examples name the delegation, and the delegation route text no longer refers to a catch-all).
 
 - The copy of the Definition Service's internal contract is refreshed (the example no longer carries a `role` field and the ingest route is no longer called idempotent).

@@ -17,6 +17,7 @@ import (
 	"github.com/BCBP-SOLUTIONS-FZC-LLC/platform-gincommon/pkg/obsregistry"
 
 	"github.com/BCBP-SOLUTIONS-FZC-LLC/workflow-events-consumer/internal/observability"
+	"github.com/BCBP-SOLUTIONS-FZC-LLC/workflow-events-consumer/internal/observability/obstest"
 )
 
 var ruleMetricPattern = regexp.MustCompile(`(?:workflow_events_consumer|platform)_[a-z_]+`)
@@ -35,7 +36,7 @@ func TestStandard_LibrariesShareRegistryCollectors(t *testing.T) {
 	observability.ForwardDurationSeconds.WithLabelValues("membership", "execution").Observe(0.1)
 	observability.HandlerDurationSeconds.WithLabelValues("membership", "ok").Observe(0.1)
 
-	srv := newHealthServer(":0", ginCfg, newReceiveWatch(&fakeGatherer{successes: 1}, time.Hour, time.Now))
+	srv := newHealthServer(":0", ginCfg, observability.NewReceiveWatch(&obstest.ReceiveGatherer{Successes: 1}, time.Hour, time.Now))
 	for _, path := range []string{"/healthz", "/readyz", "/metrics"} {
 		rec := httptest.NewRecorder()
 		srv.Handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, path, nil))
