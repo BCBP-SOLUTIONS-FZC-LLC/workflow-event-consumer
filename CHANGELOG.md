@@ -10,6 +10,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- The copy of the Execution Service's internal contract is refreshed (the `TENANT_MISMATCH` examples name the delegation, and the delegation route text no longer refers to a catch-all).
+
 - The copy of the Definition Service's internal contract is refreshed (the example no longer carries a `role` field and the ingest route is no longer called idempotent).
 
 - The dashboard queue carries the Execution Service's full catalog: `WorkflowTaskClaimed`, `WorkflowTaskSuperseded`, `WorkflowTaskFailed`, `WorkflowInstanceDegraded` and `WorkflowInstanceFailed` route to the Stream Gateway (sixteen types), and `WorkflowInstanceStarted` and `WorkflowInstanceForceRouted` carry an empty route. The topology, the chart, the runbook table, the AsyncAPI and the LLD agree (LLD rev 1.9).
