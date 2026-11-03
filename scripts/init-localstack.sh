@@ -53,6 +53,7 @@ create_topology() {
 create_topology iam-membership-events membership-workflow-q membership-workflow-q-dlq \
   '"TenderAssigneeOverridden","DepartmentMembershipGranted","DepartmentMembershipRevoked","DepartmentMembershipLevelChanged","TenantStateChanged","MembershipRevoked","TenantMembershipsPurged"'
 create_topology iam-user-events user-wf-q user-wf-q-dlq '"UserAvailabilityChanged","UserDeleted"'
-create_topology iam.delegation.events delegation-workflow-q delegation-workflow-q-dlq '"DelegationStarted","DelegationEnded"'
+# SNS topic names cannot contain a dot, so LocalStack gets the hyphenated spelling of IAM's iam.delegation.events.
+create_topology iam-delegation-events delegation-workflow-q delegation-workflow-q-dlq '"DelegationStarted","DelegationEnded"'
 
 echo "LocalStack topology ready."

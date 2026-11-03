@@ -49,6 +49,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- The LocalStack init script creates the delegation topic as `iam-delegation-events`; `iam.delegation.events` is not a valid SNS topic name, and the script stopped there before it finished.
 - A production deploy could not reach its targets: addresses had to be https while the services serve plain HTTP on 8080, and egress allowed 443 only. A target address may be http naming a port outside dev, the chart points at the services on 8080 and the NetworkPolicy opens `networkPolicy.targetPorts`.
 - `/healthz` followed the receive watch, so a shared SQS or STS outage restarted every pod. It is liveness now and `/readyz` carries the watch; the readiness and startup probes use `/readyz`.
 - The forward client drains a bounded part of each answer, so connections are reused instead of opened for every forward.
