@@ -10,6 +10,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- The `PR summary` job posts the sticky pull request comment with the job results and the coverage figure (`.github/scripts/pr-summary.js`, as the other workflow repositories do); it only printed a line before. The test job uploads the merged coverage profile for it.
 - The smoke test looks for the mock downstream's structured log line (`received event` with the event id), which the platform logger change made differ from the old `id=<id>` text; both targets are checked the same way, so a delivery to the wrong target fails it again.
 - The LLD (revision 1.10) matches its own revision history in the header.
 - Startup and the mock downstream log through the platform logger instead of the standard library `log`, the receive-stall readiness watch lives in `internal/observability` (the only place that imports the Prometheus client), and `make lint` forbids `database/sql`, `log`, `log/slog`, `zap`, the OpenTelemetry SDK and exporters and the Prometheus client outside `internal/observability`, plus direct pool and connection construction.
