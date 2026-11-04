@@ -200,6 +200,7 @@ jobs:
         env:
           JOB_RESULTS: ${{ toJSON(needs) }}
           COVERAGE_PCT: ${{ steps.cov.outputs.pct }}
+          COVERAGE_MIN: '90'
         with:
           script: |
             const prSummary = require('./.github/scripts/pr-summary.js');

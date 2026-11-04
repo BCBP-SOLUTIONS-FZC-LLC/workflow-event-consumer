@@ -59,7 +59,7 @@ jobs:
         run: make test-ci
 
       - name: Coverage threshold gate
-        run: make cover
+        run: make cover-gate
 
       - uses: actions/upload-artifact@v4
         if: always()

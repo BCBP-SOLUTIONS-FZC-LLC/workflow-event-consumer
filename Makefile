@@ -37,7 +37,7 @@ COVER_HTML      := $(COVERAGE_DIR)/coverage.html
 COVER_THRESHOLD := 90
 
 .PHONY: contract-check metrics-lint metrics-inventory helm-lint lint-workflows pin-base-images all tools tools-integration setup install-hooks build test test-integration test-ci \
-        merge-coverage cover cover-func cover-html cover-check \
+        merge-coverage cover cover-func cover-html cover-check cover-gate \
         tidy fmt-check fix check lint lint-fix arch-lint vuln \
         docker-build docker-build-mock-downstream docker-lint docker-trivy docker-check \
         clean help
@@ -153,13 +153,17 @@ cover-html:
 	go tool cover -html=$(COVER_PROFILE) -o $(COVER_HTML)
 	@open $(COVER_HTML) 2>/dev/null || xdg-open $(COVER_HTML) 2>/dev/null || true
 
-## cover-check: Run test-ci and gate on the global coverage threshold
-cover-check: test-ci
+## cover-gate: Gate on the global coverage threshold using the last test-ci profile
+cover-gate:
+	@[ -f $(COVER_PROFILE) ] || { echo "no profile — run 'make test-ci' first"; exit 1; }
 	@pct=$$(go tool cover -func=$(COVER_PROFILE) | awk '/^total:/{gsub("%","",$$NF); print $$NF}'); \
 	echo "total: $$pct% (threshold $(COVER_THRESHOLD)%)"; \
 	awk -v p="$$pct" -v t="$(COVER_THRESHOLD)" 'BEGIN { exit !(p+0 >= t+0) }' || \
 	  { echo "✗ coverage below threshold"; exit 1; }
 	@echo "✓ coverage ok"
+
+## cover-check: Run test-ci and gate on the global coverage threshold
+cover-check: test-ci cover-gate
 
 ## tidy: Run go mod tidy
 tidy:
