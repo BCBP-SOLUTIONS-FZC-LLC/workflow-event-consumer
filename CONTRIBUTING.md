@@ -110,7 +110,7 @@ in `internal/forwarder/target.go`.
 ## Conventions
 
 - Non-test code carries no comments except `//go:` and `//nolint` directives.
-- Logs, metrics and traces go through `platform-gincommon`, and every SQS consume, dead-letter and event envelope through `platform-events`. New collectors are `workflow_events_consumer_*`, built in `internal/observability`; `make metrics-lint` must pass.
+- Logs, metrics and traces go through `platform-gincommon`, and every SQS consume, dead-letter and event envelope through `platform-events`. New collectors are `workflow_events_consumer_*`, built in `internal/observability`; `make metrics-lint` must pass. `make lint` enforces it: `database/sql`, `log`, `log/slog`, `zap`, the OpenTelemetry SDK and exporters and the Prometheus client (outside `internal/observability`) cannot be imported from non-test code, and pools and connections are built only through `pgcommon`.
 - A fix starts with a test of the correct behaviour that fails, then the change.
 - A topology change updates `config/topology.example.yaml`, the chart's `topology` values and `deploy/aws/policy.json` together; a test fails when they differ.
 - Never add a `replace` directive to `go.mod`.

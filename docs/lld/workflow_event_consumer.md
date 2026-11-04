@@ -9,8 +9,8 @@
 | Document Type | Low-Level Design (LLD) |
 | Service | Workflow Events Consumer (`workflow-events-consumer`, repository `workflow-event-consumer`) |
 | Subsystem | Workflow Engine — inbound event delivery |
-| Version | 1.5 |
-| Date | 2026-10-19 |
+| Version | 1.10 |
+| Date | 2026-11-03 |
 | Status | Approved |
 | Audience | Workflow Engine team, IAM, platform/infra |
 | Owner database | None (stateless) |
@@ -27,6 +27,9 @@
 | 1.5 | 2026-10-19 | **The receive threshold and the stall window are settings, and the retry span is stated as it is** (§4 items 6 and 8). The threshold was a constant and the stall window a constant, so a different downstream outage budget needed a code change; they are `MAX_RECEIVE_COUNT` (default 4) and `RECEIVE_STALL_WINDOW` (default two minutes), defaults unchanged. The text said the retries spread over about seven minutes and covered a rolling deploy; with the library dead-lettering a message whose receive count exceeds the threshold, a message is handled four times, the last at 210 seconds, and dead-lettered on the fifth receive at 450 seconds, so the outage survived is about three and a half minutes (seven and a half with a threshold of 5, which needs the queues' redrive count raised first). |
 | 1.6 | 2026-10-22 | **IAM's queue filters are settled** (§2, §3.2, Appendix B). Organisation and Membership adds `MembershipRevoked` and `TenantMembershipsPurged` to `membership-workflow-q`'s filter (its LLD rev 2.34), and the Delegation Service approved `delegation-workflow-q` filtered to `DelegationStarted` and `DelegationEnded` (its LLD rev 2.23). The delegation review and escalation requests no longer reach the queue, so their routes are removed. |
 | 1.7 | 2026-10-22 | **platform-events confirmed the dead-letter pattern** (§8, Appendix B). The handler-side dead-letter, its single count by reason, the threshold rule and the permission set are as built; Appendix B item 7 is resolved. The consumer moves to platform-events v2.2.1. The permission paragraph adds decrypt on the source queues' key for customer-managed encryption, and states that an SNS-fed queue cannot use the AWS-managed SQS key. |
+| 1.8 | 2026-10-27 | **The local stack filters as production does, and every alert names its runbook section** (§3.1, §3.2, §8). The LocalStack subscriptions carried no filter, so locally every event on a topic arrived; they now use the approved `EventType` filters. `MembershipRevoked` and `TenantMembershipsPurged` are inside the membership queue's filter (rev 1.6), which two rows still contradicted. Definition marks a returned tenant on any other `TenantStateChanged` status. Each alert carries a `runbook` annotation naming its section of the runbook. |
+| 1.9 | 2026-11-01 | **The dashboard queue carries the Execution Service's full catalog** (§3.1, §3.2, §3.4). The queue's filter and the routes listed eleven of the 18 event types. `WorkflowTaskClaimed`, `WorkflowTaskSuperseded`, `WorkflowTaskFailed`, `WorkflowInstanceDegraded` and `WorkflowInstanceFailed` now route to the Stream Gateway, which makes sixteen; `WorkflowInstanceStarted` and `WorkflowInstanceForceRouted` carry an empty route. The Execution Service adds `started_by_user_id` to the degraded and failed events so the gateway can route them. |
+| 1.10 | 2026-11-03 | **The header matches the revision history** (header). The header still said version 1.5 of 2026-10-19 after rows 1.6 to 1.9. The receive-stall readiness watch now lives in the observability package, the only place that imports the Prometheus client, and `make lint` forbids the platform-library bypasses; behaviour is unchanged. |
 
 ---
 
@@ -85,9 +88,9 @@ Logs, metrics and traces go through `platform-gincommon`. Every queue receive, d
 | `membership-workflow-q` | `iam-membership-events` | Workflow | `TenderAssigneeOverridden`, `DepartmentMembershipGranted`, `DepartmentMembershipRevoked`, `DepartmentMembershipLevelChanged`, `TenantStateChanged`, `MembershipRevoked`, `TenantMembershipsPurged` (IAM Organisation and Membership AsyncAPI) |
 | `user-wf-q` | `iam-user-events` | Workflow | `UserAvailabilityChanged`, `UserDeleted` (IAM User Profile AsyncAPI) |
 | `delegation-workflow-q` | `iam.delegation.events` | Workflow | `DelegationStarted`, `DelegationEnded` (IAM Delegation LLD rev 2.23: the subscription filter, with raw message delivery) |
-| `wf-workflow-dash-q` | `wf-workflow-events` | Workflow | The eleven types of §3.2 that the Stream Gateway renders (Stream Gateway LLD §3.2) |
+| `wf-workflow-dash-q` | `wf-workflow-events` | Workflow | The sixteen types of §3.2 that the Stream Gateway renders (Stream Gateway LLD §3.2) |
 
-Every queue has a dead-letter queue named `<queue>-dlq` and a redrive count of 5.
+Every queue has a dead-letter queue named `<queue>-dlq` and a redrive count of 5. The local stack and the integration tests subscribe each queue with the same filter on the `EventType` message attribute, so locally an event outside a queue's filter does not arrive either.
 
 ### 3.2 Event matrix
 
@@ -95,10 +98,10 @@ An event type absent from the topology's routes is sent to every target that acc
 
 | Event type | Topic | Queue | Targets | Behaviour |
 | --- | --- | --- | --- | --- |
-| `TenantStateChanged` | `iam-membership-events` | `membership-workflow-q` | execution, definition | The resolved tenant lifecycle relay. Execution pauses, resumes or terminates the tenant's instances; for a status of offboarded Definition records the tenant for the purge of its templates and credentials, and ignores every other status. |
+| `TenantStateChanged` | `iam-membership-events` | `membership-workflow-q` | execution, definition | The resolved tenant lifecycle relay. Execution pauses, resumes or terminates the tenant's instances; for a status of offboarded Definition records the tenant for the purge of its templates and credentials, and any other status marks a recorded tenant as returned. |
 | `DepartmentMembershipRevoked` | `iam-membership-events` | `membership-workflow-q` | definition | A department membership removal. Definition invalidates templates the user is a default assignee on. |
-| `MembershipRevoked` | `iam-membership-events` | `membership-workflow-q` | definition, execution | A user removed from a tenant. Definition invalidates their default assignments and Execution vacates their active assignments. Outside the queue's subscription filter (Appendix B, item 1). |
-| `TenantMembershipsPurged` | `iam-membership-events` | `membership-workflow-q` | execution, definition | The tenant offboarding cascade signal. Execution terminates the tenant's non-terminal instances and Definition records the tenant for the purge of its templates and credentials. Outside the queue's subscription filter (Appendix B, item 1). |
+| `MembershipRevoked` | `iam-membership-events` | `membership-workflow-q` | definition, execution | A user removed from a tenant. Definition invalidates their default assignments and Execution vacates their active assignments. |
+| `TenantMembershipsPurged` | `iam-membership-events` | `membership-workflow-q` | execution, definition | The tenant offboarding cascade signal. Execution terminates the tenant's non-terminal instances and Definition records the tenant for the purge of its templates and credentials. |
 | `TenderAssigneeOverridden` | `iam-membership-events` | `membership-workflow-q` | none (dropped) | A tender assignee override. Execution applies overrides through its node-override endpoint, so the event is dropped. |
 | `DepartmentMembershipGranted` | `iam-membership-events` | `membership-workflow-q` | none (dropped) | A department membership grant. Eligibility is a live call, so the event is dropped. |
 | `DepartmentMembershipLevelChanged` | `iam-membership-events` | `membership-workflow-q` | none (dropped) | A department level change. Eligibility is a live call, so the event is dropped. |
@@ -107,16 +110,23 @@ An event type absent from the topology's routes is sent to every target that acc
 | `DelegationStarted` | `iam.delegation.events` | `delegation-workflow-q` | execution | A delegation start. Execution reroutes the delegator's active assignments to the delegate. |
 | `DelegationEnded` | `iam.delegation.events` | `delegation-workflow-q` | execution | A delegation end. Execution restores the assignments tagged with the delegation. |
 | `WorkflowTaskCreated` | `wf-workflow-events` | `wf-workflow-dash-q` | workflow-stream-gateway, execution | An Execution Service lifecycle event rendered by the Stream Gateway. Execution dispatches connector tasks from it. |
+| `WorkflowTaskClaimed` | `wf-workflow-events` | `wf-workflow-dash-q` | workflow-stream-gateway | An Execution Service lifecycle event rendered by the Stream Gateway. |
 | `WorkflowTaskCompleted` | `wf-workflow-events` | `wf-workflow-dash-q` | workflow-stream-gateway | An Execution Service lifecycle event rendered by the Stream Gateway. |
 | `WorkflowTaskDeferred` | `wf-workflow-events` | `wf-workflow-dash-q` | workflow-stream-gateway | An Execution Service lifecycle event rendered by the Stream Gateway. |
 | `WorkflowTaskReassigned` | `wf-workflow-events` | `wf-workflow-dash-q` | workflow-stream-gateway | An Execution Service lifecycle event rendered by the Stream Gateway. |
+| `WorkflowTaskSuperseded` | `wf-workflow-events` | `wf-workflow-dash-q` | workflow-stream-gateway | An Execution Service lifecycle event rendered by the Stream Gateway. |
+| `WorkflowTaskFailed` | `wf-workflow-events` | `wf-workflow-dash-q` | workflow-stream-gateway | An Execution Service lifecycle event rendered by the Stream Gateway. |
 | `WorkflowTaskSlaWarning` | `wf-workflow-events` | `wf-workflow-dash-q` | workflow-stream-gateway | An Execution Service lifecycle event rendered by the Stream Gateway. |
 | `WorkflowTaskSlaBreached` | `wf-workflow-events` | `wf-workflow-dash-q` | workflow-stream-gateway | An Execution Service lifecycle event rendered by the Stream Gateway. |
 | `WorkflowInstancePaused` | `wf-workflow-events` | `wf-workflow-dash-q` | workflow-stream-gateway | An Execution Service lifecycle event rendered by the Stream Gateway. |
 | `WorkflowInstanceResumed` | `wf-workflow-events` | `wf-workflow-dash-q` | workflow-stream-gateway | An Execution Service lifecycle event rendered by the Stream Gateway. |
 | `WorkflowInstanceCancelled` | `wf-workflow-events` | `wf-workflow-dash-q` | workflow-stream-gateway | An Execution Service lifecycle event rendered by the Stream Gateway. |
 | `WorkflowInstanceTerminated` | `wf-workflow-events` | `wf-workflow-dash-q` | workflow-stream-gateway | An Execution Service lifecycle event rendered by the Stream Gateway. |
+| `WorkflowInstanceDegraded` | `wf-workflow-events` | `wf-workflow-dash-q` | workflow-stream-gateway | An Execution Service lifecycle event rendered by the Stream Gateway. |
+| `WorkflowInstanceFailed` | `wf-workflow-events` | `wf-workflow-dash-q` | workflow-stream-gateway | An Execution Service lifecycle event rendered by the Stream Gateway. |
 | `WorkflowInstanceFinished` | `wf-workflow-events` | `wf-workflow-dash-q` | workflow-stream-gateway | An Execution Service lifecycle event rendered by the Stream Gateway. |
+| `WorkflowInstanceStarted` | `wf-workflow-events` | `wf-workflow-dash-q` | none (dropped) | The creating client knows the start synchronously, so the dashboard does not render it. The queue's filter excludes it and the route drops it if it ever arrives. |
+| `WorkflowInstanceForceRouted` | `wf-workflow-events` | `wf-workflow-dash-q` | none (dropped) | An operator-facing event the dashboard does not render. The queue's filter excludes it and the route drops it if it ever arrives. |
 
 ### 3.3 Execution Service paths
 
@@ -135,7 +145,7 @@ The Definition Service and the Stream Gateway receive every event on the base ev
 
 IAM publishes `TenantRoleGranted`, `TenantRoleRevoked`, `MFAReset`, `TenantSeatOverageStarted`, `TenantSeatOverageResolved`, `UserProvisioned`, `UserUpdated` and the tenant lifecycle events on other topics (`iam-tenant-events` and the billing topic) for the Audit, AuthZ, Notification, Realm, Billing and Delegation consumers. None is delivered to a Workflow queue.
 
-The Execution Service publishes `WorkflowInstanceStarted`, `WorkflowInstanceDegraded`, `WorkflowInstanceFailed`, `WorkflowInstanceForceRouted`, `WorkflowTaskClaimed`, `WorkflowTaskSuperseded` and `WorkflowTaskFailed` to `wf-workflow-events` for the audit, notification, Tender and LLM consumers. The dashboard queue's filter excludes them.
+The Execution Service publishes 18 event types to `wf-workflow-events` for the audit, notification, Tender, LLM and dashboard consumers. The dashboard queue's filter delivers 16 of them (§3.2). `WorkflowInstanceStarted` and `WorkflowInstanceForceRouted` are excluded by the filter and carry an empty route, so a widened filter drops them instead of broadcasting them.
 
 ---
 

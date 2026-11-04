@@ -13,6 +13,7 @@ import (
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/sns"
+	snstypes "github.com/aws/aws-sdk-go-v2/service/sns/types"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	sqstypes "github.com/aws/aws-sdk-go-v2/service/sqs/types"
 	"github.com/testcontainers/testcontainers-go"
@@ -34,12 +35,16 @@ type LocalStackSNSSQS struct {
 }
 
 var Topologies = []struct {
-	Topic string
-	Queue string
-	DLQ   string
+	Topic  string
+	Queue  string
+	DLQ    string
+	Events []string
 }{
-	{Topic: "iam-membership-events", Queue: "membership-workflow-q", DLQ: "membership-workflow-q-dlq"},
-	{Topic: "iam-user-events", Queue: "user-wf-q", DLQ: "user-wf-q-dlq"},
+	{Topic: "iam-membership-events", Queue: "membership-workflow-q", DLQ: "membership-workflow-q-dlq", Events: []string{
+		"TenderAssigneeOverridden", "DepartmentMembershipGranted", "DepartmentMembershipRevoked", "DepartmentMembershipLevelChanged",
+		"TenantStateChanged", "MembershipRevoked", "TenantMembershipsPurged",
+	}},
+	{Topic: "iam-user-events", Queue: "user-wf-q", DLQ: "user-wf-q-dlq", Events: []string{"UserAvailabilityChanged", "UserDeleted"}},
 }
 
 func NewLocalStackSNSSQS(ctx context.Context, t *testing.T) *LocalStackSNSSQS {
@@ -105,7 +110,7 @@ func NewLocalStackSNSSQS(ctx context.Context, t *testing.T) *LocalStackSNSSQS {
 		if err != nil {
 			t.Fatalf("NewLocalStackSNSSQS: CreateTopic %s: %v", topo.Topic, err)
 		}
-		queueURL, dlqURL := createQueueWithDLQAndSubscribe(ctx, t, snsClient, sqsClient, aws.ToString(topicOut.TopicArn), topo.Queue, topo.DLQ)
+		queueURL, dlqURL := createQueueWithDLQAndSubscribe(ctx, t, snsClient, sqsClient, aws.ToString(topicOut.TopicArn), topo.Queue, topo.DLQ, topo.Events)
 		ls.Queues[topo.Topic] = TopicQueue{Name: topo.Queue, QueueURL: queueURL, DLQURL: dlqURL}
 	}
 
@@ -115,7 +120,7 @@ func NewLocalStackSNSSQS(ctx context.Context, t *testing.T) *LocalStackSNSSQS {
 func createQueueWithDLQAndSubscribe(
 	ctx context.Context, t *testing.T,
 	snsClient *sns.Client, sqsClient *sqs.Client,
-	topicARN, queueName, dlqName string,
+	topicARN, queueName, dlqName string, events []string,
 ) (string, string) {
 	t.Helper()
 
@@ -143,12 +148,14 @@ func createQueueWithDLQAndSubscribe(
 	queueURL := aws.ToString(queueOut.QueueUrl)
 	queueArn := queueARN(ctx, t, sqsClient, queueURL)
 
+	filterPolicy, _ := json.Marshal(map[string][]string{"EventType": events})
 	if _, err := snsClient.Subscribe(ctx, &sns.SubscribeInput{
 		TopicArn: aws.String(topicARN),
 		Protocol: aws.String("sqs"),
 		Endpoint: aws.String(queueArn),
 		Attributes: map[string]string{
 			"RawMessageDelivery": "true",
+			"FilterPolicy":       string(filterPolicy),
 		},
 	}); err != nil {
 		t.Fatalf("createQueueWithDLQAndSubscribe: Subscribe %s -> %s: %v", queueName, topicARN, err)
@@ -179,11 +186,29 @@ func (ls *LocalStackSNSSQS) Publish(ctx context.Context, t *testing.T, topic str
 	if err != nil {
 		t.Fatalf("Publish: CreateTopic %s: %v", topic, err)
 	}
+	var envelope struct {
+		Type string `json:"type"`
+	}
+	_ = json.Unmarshal(body, &envelope)
 	if _, err := ls.SNSClient.Publish(ctx, &sns.PublishInput{
 		TopicArn: topicOut.TopicArn,
 		Message:  aws.String(string(body)),
+		MessageAttributes: map[string]snstypes.MessageAttributeValue{
+			"EventType": {DataType: aws.String("String"), StringValue: aws.String(envelope.Type)},
+		},
 	}); err != nil {
 		t.Fatalf("Publish: %s (queue %s): %v", topic, tq.Name, err)
+	}
+}
+
+func (ls *LocalStackSNSSQS) SendToQueue(ctx context.Context, t *testing.T, topic string, body []byte) {
+	t.Helper()
+	tq, ok := ls.Queues[topic]
+	if !ok {
+		t.Fatalf("SendToQueue: unknown topic %s", topic)
+	}
+	if _, err := ls.SQSClient.SendMessage(ctx, &sqs.SendMessageInput{QueueUrl: aws.String(tq.QueueURL), MessageBody: aws.String(string(body))}); err != nil {
+		t.Fatalf("SendToQueue: %s: %v", tq.Name, err)
 	}
 }
 

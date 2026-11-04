@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"os/signal"
@@ -30,19 +29,21 @@ func main() {
 
 	wlog, err := logger.NewLogger(cfg.AppEnv)
 	if err != nil {
-		log.Fatalf("event-consumer: new logger: %v", err)
+		fmt.Fprintf(os.Stderr, "event-consumer: new logger: %v\n", err)
+		os.Exit(1)
 	}
 
 	shutdownTelemetry, err := observability.InitTelemetry(observability.GinConfig(cfg.OTELServiceName, cfg.BuildVersion, cfg.AppEnv, wlog), wlog)
 	if err != nil {
-		log.Fatalf("event-consumer: telemetry: %v", err)
+		wlog.Error("telemetry init failed", map[string]any{"error": err.Error()})
+		os.Exit(1)
 	}
 
 	wlog.Info("event-consumer starting", map[string]any{"version": version})
 
 	d, err := buildDeps(cfg, wlog)
 	if err != nil {
-		fatalf(shutdownTelemetry, "event-consumer: %v", err)
+		fatal(wlog, shutdownTelemetry, "startup failed", err)
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -52,7 +53,7 @@ func main() {
 	}
 	sup := superviseConsumers(ctx, consumers, wlog)
 
-	watch := newReceiveWatch(gincommon.MetricsGatherer(), cfg.ReceiveStallWindow, time.Now)
+	watch := observability.NewReceiveWatch(gincommon.MetricsGatherer(), cfg.ReceiveStallWindow, time.Now)
 	healthSrv := newHealthServer(fmt.Sprintf(":%d", cfg.HealthPort), observability.GinConfig(cfg.OTELServiceName, cfg.BuildVersion, cfg.AppEnv, wlog), watch)
 	go func() {
 		if err := healthSrv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
@@ -89,8 +90,8 @@ func main() {
 	}
 }
 
-func fatalf(flush func(), format string, v ...any) {
-	log.Printf(format, v...)
+func fatal(wlog observability.Logger, flush func(), msg string, err error) {
+	wlog.Error(msg, map[string]any{"error": err.Error()})
 	flush()
 	os.Exit(1)
 }

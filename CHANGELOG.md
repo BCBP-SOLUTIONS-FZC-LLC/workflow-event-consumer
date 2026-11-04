@@ -10,6 +10,20 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- CI: the coverage step runs the new `make cover-gate`, which fails below the 90% threshold on the existing profile (it only printed the total before), and the PR summary comment shows that 90% limit with a pass or fail mark.
+- The `PR summary` job posts the sticky pull request comment with the job results and the coverage figure (`.github/scripts/pr-summary.js`, as the other workflow repositories do); it only printed a line before. The test job uploads the merged coverage profile for it.
+- The smoke test looks for the mock downstream's structured log line (`received event` with the event id), which the platform logger change made differ from the old `id=<id>` text; both targets are checked the same way, so a delivery to the wrong target fails it again.
+- The LLD (revision 1.10) matches its own revision history in the header.
+- Startup and the mock downstream log through the platform logger instead of the standard library `log`, the receive-stall readiness watch lives in `internal/observability` (the only place that imports the Prometheus client), and `make lint` forbids `database/sql`, `log`, `log/slog`, `zap`, the OpenTelemetry SDK and exporters and the Prometheus client outside `internal/observability`, plus direct pool and connection construction.
+- The copy of the Execution Service's internal contract is refreshed (the `TENANT_MISMATCH` examples name the delegation, and the delegation route text no longer refers to a catch-all).
+
+- The copy of the Definition Service's internal contract is refreshed (the example no longer carries a `role` field and the ingest route is no longer called idempotent).
+
+- The dashboard queue carries the Execution Service's full catalog: `WorkflowTaskClaimed`, `WorkflowTaskSuperseded`, `WorkflowTaskFailed`, `WorkflowInstanceDegraded` and `WorkflowInstanceFailed` route to the Stream Gateway (sixteen types), and `WorkflowInstanceStarted` and `WorkflowInstanceForceRouted` carry an empty route. The topology, the chart, the runbook table, the AsyncAPI and the LLD agree (LLD rev 1.9).
+- The AsyncAPI states each queue's redrive count of five, held by a test.
+- The LocalStack init script and the integration fixture subscribe each queue with the approved `EventType` filter, so locally an event outside a queue's filter does not arrive; tests that exercise forwarding of off-filter or malformed bodies send them straight to the queue, and the smoke test publishes with the `EventType` attribute the filter matches on (LLD rev 1.8).
+- Every alert carries a `runbook` annotation naming its section of `docs/runbook.md`; a test holds every link to a real section.
+- The copy of Execution's internal spec is at `f53ed5d` (the `NOT_FOUND` code).
 - `make docker-lint` and the CI image job run `scripts/dockerfile-credentials-check.sh`, which fails when a `RUN` that uses a build secret does not end with `trap '... rm -f ~/.git-credentials ...' EXIT`, when a `RUN` is a heredoc, or when a workflow uses a registry build cache.
 - The NetworkPolicy admits Prometheus from the platform namespace `observability` (value `networkPolicy.observabilityNamespace`, formerly `monitoringNamespace: monitoring`); a test holds the value and its use.
 - `platform-events/v2` is `v2.2.1`: a message whose handler dead-letter send failed stays on the queue, a failed delete after a dead-letter is retried and remembered so a redelivery is not dead-lettered twice, and the toolchain is Go 1.26.10. platform-events confirmed the handler-side dead-letter pattern, its single count by reason and the permission set (LLD rev 1.7, Appendix B item 7).
@@ -38,6 +52,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- The LocalStack init script creates the delegation topic as `iam-delegation-events`; `iam.delegation.events` is not a valid SNS topic name, and the script stopped there before it finished.
 - A production deploy could not reach its targets: addresses had to be https while the services serve plain HTTP on 8080, and egress allowed 443 only. A target address may be http naming a port outside dev, the chart points at the services on 8080 and the NetworkPolicy opens `networkPolicy.targetPorts`.
 - `/healthz` followed the receive watch, so a shared SQS or STS outage restarted every pod. It is liveness now and `/readyz` carries the watch; the readiness and startup probes use `/readyz`.
 - The forward client drains a bounded part of each answer, so connections are reused instead of opened for every forward.

@@ -8,6 +8,7 @@ groups:
         labels:
           severity: warning
         annotations:
+          runbook: "docs/runbook.md#a-message-is-stuck-redelivering"
           summary: "workflow-events-consumer forwarding errors to {{ $labels.target }}"
           description: >
             Sustained forward failures to target "{{ $labels.target }}" for 10m —
@@ -22,6 +23,7 @@ groups:
         labels:
           severity: warning
         annotations:
+          runbook: "docs/runbook.md#a-message-is-stuck-redelivering"
           summary: "workflow-events-consumer p99 handler latency high on queue {{ $labels.queue }}"
           description: >
             p99 handler duration for queue "{{ $labels.queue }}" has exceeded 5s for
@@ -34,6 +36,7 @@ groups:
         labels:
           severity: critical
         annotations:
+          runbook: "docs/runbook.md#the-pod-is-not-ready-and-nothing-is-consumed"
           summary: "workflow-events-consumer is down"
           description: "No successful /metrics scrape for 5m — the bridge may not be consuming any queue."
 
@@ -44,6 +47,7 @@ groups:
         labels:
           severity: warning
         annotations:
+          runbook: "docs/runbook.md#a-message-is-stuck-redelivering"
           summary: "workflow-events-consumer messages failing on queue {{ $labels.queue }}"
           description: >
             Messages on queue "{{ $labels.queue }}" have failed processing for 10m
@@ -56,6 +60,7 @@ groups:
         labels:
           severity: page
         annotations:
+          runbook: "docs/runbook.md#replaying-a-dead-lettered-message"
           summary: "workflow-events-consumer dead-lettered {{ $labels.event_type }} ({{ $labels.reason }})"
           description: "A message exhausted its deliveries or was malformed and moved to the dead-letter queue. See docs/runbook.md."
 
@@ -64,6 +69,7 @@ groups:
         labels:
           severity: critical
         annotations:
+          runbook: "docs/runbook.md#alerting-signals"
           summary: "A workflow-events-consumer HTTP handler panicked"
           description: "The health and metrics server recovered a panic. Check the logs for the stack trace."
 
@@ -74,6 +80,7 @@ groups:
         labels:
           severity: critical
         annotations:
+          runbook: "docs/runbook.md#the-pod-is-not-ready-and-nothing-is-consumed"
           summary: "workflow-events-consumer cannot receive from SQS"
           description: >
             ReceiveMessage has been failing for 5m, so no queue is being consumed. Check the
@@ -87,6 +94,7 @@ groups:
         labels:
           severity: warning
         annotations:
+          runbook: "docs/runbook.md#a-message-is-stuck-redelivering"
           summary: "workflow-events-consumer backlog on queue {{ $labels.queue }}"
           description: "Queue \"{{ $labels.queue }}\" has held more than 1000 messages for 15m. Check target health and CONSUMER_CONCURRENCY."
 
@@ -97,6 +105,7 @@ groups:
         labels:
           severity: page
         annotations:
+          runbook: "docs/runbook.md#replaying-a-dead-lettered-message"
           summary: "workflow-events-consumer dead-letter queue of {{ $labels.queue }} is not empty"
           description: >
             The dead-letter queue behind "{{ $labels.queue }}" holds messages. This also covers

@@ -74,3 +74,18 @@ func value(t dto.MetricType, m *dto.Metric) float64 {
 	}
 	return 0
 }
+
+type ReceiveGatherer struct{ Successes float64 }
+
+func (g *ReceiveGatherer) Gather() ([]*dto.MetricFamily, error) {
+	name := "platform_dependency_request_seconds"
+	count := uint64(g.Successes)
+	other := uint64(7)
+	label := func(k, v string) *dto.LabelPair { return &dto.LabelPair{Name: &k, Value: &v} }
+	family := &dto.MetricFamily{Name: &name, Type: dto.MetricType_HISTOGRAM.Enum(), Metric: []*dto.Metric{
+		{Label: []*dto.LabelPair{label("dependency", "sqs"), label("operation", "receive_message"), label("outcome", "success")}, Histogram: &dto.Histogram{SampleCount: &count}},
+		{Label: []*dto.LabelPair{label("dependency", "sqs"), label("operation", "receive_message"), label("outcome", "error")}, Histogram: &dto.Histogram{SampleCount: &other}},
+		{Label: []*dto.LabelPair{label("dependency", "sqs"), label("operation", "delete_message"), label("outcome", "success")}, Histogram: &dto.Histogram{SampleCount: &other}},
+	}}
+	return []*dto.MetricFamily{family}, nil
+}

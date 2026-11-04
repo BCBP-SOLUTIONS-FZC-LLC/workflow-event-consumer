@@ -101,7 +101,7 @@ func TestLocalStackFlow_RoutesToOnlyExecution(t *testing.T) {
 	env := events.NewEnvelope("DelegationStarted", "iam", json.RawMessage(`{"delegate_id":"u-1"}`))
 	body, err := json.Marshal(env)
 	require.NoError(t, err)
-	ls.Publish(ctx, t, "iam-membership-events", body)
+	ls.SendToQueue(ctx, t, "iam-membership-events", body)
 
 	require.Eventually(t, func() bool {
 		return exec.Count() == 1
@@ -177,7 +177,7 @@ func TestLocalStackFlow_UnknownTypeBroadcastsToEveryTargetThatAcceptsIt(t *testi
 	env := events.NewEnvelope("SomeFutureEventType", "iam", json.RawMessage(`{}`))
 	body, err := json.Marshal(env)
 	require.NoError(t, err)
-	ls.Publish(ctx, t, "iam-membership-events", body)
+	ls.SendToQueue(ctx, t, "iam-membership-events", body)
 
 	require.Eventually(t, func() bool {
 		return def.Count() == 1
@@ -295,7 +295,7 @@ func TestLocalStackFlow_SchemaEncodedEventIsForwardedUnchanged(t *testing.T) {
 	env.SchemaID = "schema-1"
 	body, err := json.Marshal(env)
 	require.NoError(t, err)
-	ls.Publish(ctx, t, "iam-membership-events", body)
+	ls.SendToQueue(ctx, t, "iam-membership-events", body)
 
 	require.Eventually(t, func() bool { return exec.Count() == 1 }, 15*time.Second, 200*time.Millisecond)
 	got := exec.Received()[0]
@@ -343,7 +343,7 @@ func TestLocalStackFlow_MalformedBodyIsDeadLetteredAndNeverLogged(t *testing.T) 
 	require.NoError(t, err)
 	startConsumer(t, c)
 
-	ls.Publish(ctx, t, "iam-user-events", []byte("not-json tenant-secret-4711"))
+	ls.SendToQueue(ctx, t, "iam-user-events", []byte("not-json tenant-secret-4711"))
 
 	var dead []string
 	require.Eventually(t, func() bool {
@@ -352,4 +352,28 @@ func TestLocalStackFlow_MalformedBodyIsDeadLetteredAndNeverLogged(t *testing.T) 
 	}, 15*time.Second, 200*time.Millisecond, "the malformed message should reach the DLQ")
 
 	assert.NotContains(t, logs.text(), "tenant-secret-4711", "message bodies carry tenant data and stay out of the logs")
+}
+
+func TestLocalStackFlow_TheSubscriptionFilterKeepsOtherEventsOffTheQueue(t *testing.T) {
+	setLocalStackCredentials(t)
+	ctx := context.Background()
+	ls := fixtures.NewLocalStackSNSSQS(ctx, t)
+	queue := ls.Queues["iam-membership-events"]
+
+	outside, err := json.Marshal(events.NewEnvelope("TenantSeatOverageDetected", "iam", json.RawMessage(`{}`)))
+	require.NoError(t, err)
+	inside, err := json.Marshal(events.NewEnvelope("MembershipRevoked", "iam", json.RawMessage(`{}`)))
+	require.NoError(t, err)
+	ls.Publish(ctx, t, "iam-membership-events", outside)
+	ls.Publish(ctx, t, "iam-membership-events", inside)
+
+	var bodies []string
+	require.Eventually(t, func() bool {
+		bodies = append(bodies, ls.DrainQueue(ctx, t, queue.QueueURL)...)
+		return len(bodies) >= 1
+	}, 15*time.Second, 200*time.Millisecond)
+	time.Sleep(2 * time.Second)
+	bodies = append(bodies, ls.DrainQueue(ctx, t, queue.QueueURL)...)
+	require.Len(t, bodies, 1, "only the filtered-in event reaches the queue")
+	assert.Contains(t, bodies[0], "MembershipRevoked")
 }

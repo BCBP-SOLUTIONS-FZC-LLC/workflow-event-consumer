@@ -40,17 +40,22 @@ body=$(printf '{"id":"%s","type":"DepartmentMembershipRevoked","source":"iam","t
   "$id" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$(uuidgen)" "$(uuidgen)" "$(uuidgen)")
 docker compose exec -T localstack awslocal sns publish --region us-east-1 \
   --topic-arn arn:aws:sns:us-east-1:000000000000:iam-membership-events \
-  --message "$body" >/dev/null
+  --message "$body" \
+  --message-attributes '{"EventType":{"DataType":"String","StringValue":"DepartmentMembershipRevoked"}}' >/dev/null
+
+received() {
+  docker compose logs --no-color "$1" | grep -q "received event.*\"id\": \"$id\""
+}
 
 for _ in $(seq 1 30); do
-  if docker compose logs --no-color mock-definition | grep -q "received event id=$id"; then
+  if received mock-definition; then
     delivered=1
     break
   fi
   sleep 2
 done
 [ "${delivered:-0}" = 1 ] || { echo "smoke: the definition target never received event $id"; exit 1; }
-if docker compose logs --no-color mock-execution | grep -q "received event id=$id"; then
+if received mock-execution; then
   echo "smoke: event $id reached the execution target, which its route does not name"
   exit 1
 fi
