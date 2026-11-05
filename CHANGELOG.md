@@ -11,6 +11,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Changed
 
 - `api/contracts/SOURCES` tracks the `main` branches of the Definition and Execution Services (it named the `feat/service` branches before the services merged).
+- `platform-pgcommon/v2` moves from v2.0.0 to v2.0.2 (a patch release; an indirect module here).
 - CI: the coverage step runs the new `make cover-gate`, which fails below the 90% threshold on the existing profile (it only printed the total before), and the PR summary comment shows that 90% limit with a pass or fail mark.
 - The `PR summary` job posts the sticky pull request comment with the job results and the coverage figure (`.github/scripts/pr-summary.js`, as the other workflow repositories do); it only printed a line before. The test job uploads the merged coverage profile for it.
 - The smoke test looks for the mock downstream's structured log line (`received event` with the event id), which the platform logger change made differ from the old `id=<id>` text; both targets are checked the same way, so a delivery to the wrong target fails it again.
