@@ -33,7 +33,7 @@ func TestMakeHandler_Success(t *testing.T) {
 	exec := mocks.NewDownstream()
 	defer exec.Close()
 
-	fwd := forwarder.New(forwarder.NewTarget("execution", exec.URL(), "", "token", time.Second))
+	fwd := forwarder.New(forwarder.NewTarget("execution", exec.URL(), "", time.Second))
 	router := NewRouter(testRoutes, []string{"execution"})
 	handler := MakeHandler("membership", fwd, router, &eventsmock.DLQPublisher{})
 
@@ -46,7 +46,7 @@ func TestMakeHandler_Success(t *testing.T) {
 	assert.Equal(t, "evt-1", got.ID)
 	assert.Equal(t, "DelegationStarted", got.Type)
 	assert.JSONEq(t, `{"a":1}`, string(got.Payload))
-	assert.Equal(t, "token", exec.LastToken())
+	assert.Equal(t, "iam-system", exec.LastHeaders().Get("x-tenant-roles"))
 }
 
 func TestMakeHandler_RoutesToOnlyOneTarget(t *testing.T) {
@@ -56,8 +56,8 @@ func TestMakeHandler_RoutesToOnlyOneTarget(t *testing.T) {
 	defer def.Close()
 
 	fwd := forwarder.New(
-		forwarder.NewTarget("execution", exec.URL(), "", "exec-token", time.Second),
-		forwarder.NewTarget("definition", def.URL(), "", "def-token", time.Second),
+		forwarder.NewTarget("execution", exec.URL(), "", time.Second),
+		forwarder.NewTarget("definition", def.URL(), "", time.Second),
 	)
 	router := NewRouter(testRoutes, []string{"execution", "definition"})
 	handler := MakeHandler("membership", fwd, router, &eventsmock.DLQPublisher{})
@@ -76,8 +76,8 @@ func TestMakeHandler_UnknownTypeBroadcastsToEveryTargetThatAcceptsIt(t *testing.
 	defer def.Close()
 
 	fwd := forwarder.New(
-		forwarder.NewTarget("execution", exec.URL(), "", "exec-token", time.Second),
-		forwarder.NewTarget("definition", def.URL(), "", "def-token", time.Second),
+		forwarder.NewTarget("execution", exec.URL(), "", time.Second),
+		forwarder.NewTarget("definition", def.URL(), "", time.Second),
 	)
 	router := NewRouter(testRoutes, []string{"execution", "definition"})
 	handler := MakeHandler("membership", fwd, router, &eventsmock.DLQPublisher{})
@@ -94,7 +94,7 @@ func TestMakeHandler_ForwardFails(t *testing.T) {
 	defer exec.Close()
 	exec.SetStatus(http.StatusInternalServerError)
 
-	fwd := forwarder.New(forwarder.NewTarget("execution", exec.URL(), "", "token", time.Second))
+	fwd := forwarder.New(forwarder.NewTarget("execution", exec.URL(), "", time.Second))
 	router := NewRouter(testRoutes, []string{"execution"})
 	handler := MakeHandler("membership", fwd, router, &eventsmock.DLQPublisher{})
 
@@ -113,7 +113,7 @@ func newDeadLetterHarness(t *testing.T, statuses map[string]int) (*eventsmock.Co
 		d.SetStatus(status)
 		t.Cleanup(d.Close)
 		downstreams[name] = d
-		targets = append(targets, forwarder.NewTarget(name, d.URL(), "", "token", time.Second))
+		targets = append(targets, forwarder.NewTarget(name, d.URL(), "", time.Second))
 		names = append(names, name)
 	}
 	dlq := &eventsmock.DLQPublisher{}
@@ -173,7 +173,7 @@ func TestMakeHandler_FailedDeadLetterKeepsTheMessage(t *testing.T) {
 func TestMakeHandler_ForwardsTheOriginalBodyOfASchemaEncodedEvent(t *testing.T) {
 	exec := mocks.NewDownstream()
 	defer exec.Close()
-	fwd := forwarder.New(forwarder.NewTarget("execution", exec.URL(), "", "token", time.Second))
+	fwd := forwarder.New(forwarder.NewTarget("execution", exec.URL(), "", time.Second))
 	c := &eventsmock.Consumer{Codec: events.NoopCodec{}}
 	c.SetHandler(MakeHandler("membership", fwd, NewRouter(testRoutes, []string{"execution"}), &eventsmock.DLQPublisher{}))
 
@@ -198,7 +198,7 @@ func handlerResults(t *testing.T) map[string]float64 {
 func TestMakeHandler_RecordsEachOutcomeUnderItsOwnResult(t *testing.T) {
 	exec := mocks.NewDownstream()
 	defer exec.Close()
-	fwd := forwarder.New(forwarder.NewTarget("definition", exec.URL(), "", "token", time.Second))
+	fwd := forwarder.New(forwarder.NewTarget("definition", exec.URL(), "", time.Second))
 	routes := map[string][]string{"Routed": {"definition"}, "Dropped": {}}
 	handler := MakeHandler("membership", fwd, NewRouter(routes, []string{"definition"}), &eventsmock.DLQPublisher{})
 	env := func(typ string) events.Envelope[json.RawMessage] {

@@ -15,7 +15,8 @@ type Downstream struct {
 
 	mu       sync.Mutex
 	received []events.Envelope[json.RawMessage]
-	tokens   []string
+	headers  []http.Header
+	bodies   [][]byte
 	paths    []string
 	status   int
 }
@@ -33,7 +34,8 @@ func (d *Downstream) handle(w http.ResponseWriter, r *http.Request) {
 
 	d.mu.Lock()
 	d.received = append(d.received, env)
-	d.tokens = append(d.tokens, r.Header.Get("x-internal-token"))
+	d.headers = append(d.headers, r.Header.Clone())
+	d.bodies = append(d.bodies, body)
 	d.paths = append(d.paths, r.URL.Path)
 	status := d.status
 	d.mu.Unlock()
@@ -69,13 +71,13 @@ func (d *Downstream) Received() []events.Envelope[json.RawMessage] {
 	return out
 }
 
-func (d *Downstream) LastToken() string {
+func (d *Downstream) LastHeaders() http.Header {
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	if len(d.tokens) == 0 {
-		return ""
+	if len(d.headers) == 0 {
+		return nil
 	}
-	return d.tokens[len(d.tokens)-1]
+	return d.headers[len(d.headers)-1].Clone()
 }
 
 func (d *Downstream) LastPath() string {
@@ -85,4 +87,12 @@ func (d *Downstream) LastPath() string {
 		return ""
 	}
 	return d.paths[len(d.paths)-1]
+}
+
+func (d *Downstream) Bodies() [][]byte {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	out := make([][]byte, len(d.bodies))
+	copy(out, d.bodies)
+	return out
 }

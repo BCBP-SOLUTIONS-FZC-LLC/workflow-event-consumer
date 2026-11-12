@@ -89,8 +89,8 @@ func TestLocalStackFlow_RoutesToOnlyExecution(t *testing.T) {
 	defer def.Close()
 
 	fwd := forwarder.New(
-		forwarder.NewTarget("execution", exec.URL(), "", "exec-token", 5*time.Second),
-		forwarder.NewTarget("definition", def.URL(), "", "def-token", 5*time.Second),
+		forwarder.NewTarget("execution", exec.URL(), "", 5*time.Second),
+		forwarder.NewTarget("definition", def.URL(), "", 5*time.Second),
 	)
 
 	membershipQueue := ls.Queues["iam-membership-events"]
@@ -112,7 +112,7 @@ func TestLocalStackFlow_RoutesToOnlyExecution(t *testing.T) {
 	}, 15*time.Second, 200*time.Millisecond, "message should be acked once execution succeeds")
 
 	assert.Equal(t, 0, def.Count(), "definition should never receive an execution-only event")
-	assert.Equal(t, "exec-token", exec.LastToken())
+	assert.Equal(t, "iam-system", exec.LastHeaders().Get("x-tenant-roles"))
 	assert.GreaterOrEqual(t, obstest.Sum(t, "platform_messages_processed_total", map[string]string{"event_type": "DelegationStarted"}), 1.0,
 		"the platform-events consumer records the processed message")
 	assert.GreaterOrEqual(t, obstest.Sum(t, "workflow_events_consumer_forward_total", map[string]string{"target": "execution", "result": "ok"}), 1.0)
@@ -130,8 +130,8 @@ func TestLocalStackFlow_RoutesToOnlyDefinition(t *testing.T) {
 	defer def.Close()
 
 	fwd := forwarder.New(
-		forwarder.NewTarget("execution", exec.URL(), "", "exec-token", 5*time.Second),
-		forwarder.NewTarget("definition", def.URL(), "", "def-token", 5*time.Second),
+		forwarder.NewTarget("execution", exec.URL(), "", 5*time.Second),
+		forwarder.NewTarget("definition", def.URL(), "", 5*time.Second),
 	)
 
 	membershipQueue := ls.Queues["iam-membership-events"]
@@ -152,7 +152,7 @@ func TestLocalStackFlow_RoutesToOnlyDefinition(t *testing.T) {
 	}, 15*time.Second, 200*time.Millisecond, "message should be acked once definition succeeds")
 
 	assert.Equal(t, 0, exec.Count(), "execution should never receive a definition-only event")
-	assert.Equal(t, "def-token", def.LastToken())
+	assert.Equal(t, "iam-system", def.LastHeaders().Get("x-tenant-roles"))
 }
 
 func TestLocalStackFlow_UnknownTypeBroadcastsToEveryTargetThatAcceptsIt(t *testing.T) {
@@ -167,8 +167,8 @@ func TestLocalStackFlow_UnknownTypeBroadcastsToEveryTargetThatAcceptsIt(t *testi
 	defer def.Close()
 
 	fwd := forwarder.New(
-		forwarder.NewTarget("execution", exec.URL(), "", "exec-token", 5*time.Second),
-		forwarder.NewTarget("definition", def.URL(), "", "def-token", 5*time.Second),
+		forwarder.NewTarget("execution", exec.URL(), "", 5*time.Second),
+		forwarder.NewTarget("definition", def.URL(), "", 5*time.Second),
 	)
 
 	membershipQueue := ls.Queues["iam-membership-events"]
@@ -200,8 +200,8 @@ func TestLocalStackFlow_OneTargetFailsBlocksAck(t *testing.T) {
 	exec.SetStatus(http.StatusInternalServerError)
 
 	fwd := forwarder.New(
-		forwarder.NewTarget("execution", exec.URL(), "", "exec-token", 5*time.Second),
-		forwarder.NewTarget("definition", def.URL(), "", "def-token", 5*time.Second),
+		forwarder.NewTarget("execution", exec.URL(), "", 5*time.Second),
+		forwarder.NewTarget("definition", def.URL(), "", 5*time.Second),
 	)
 
 	userQueue := ls.Queues["iam-user-events"]
@@ -233,7 +233,7 @@ func TestLocalStackFlow_PermanentFailureReachesTheDLQAfterOneDelivery(t *testing
 	defer exec.Close()
 	exec.SetStatus(http.StatusBadRequest)
 
-	fwd := forwarder.New(forwarder.NewTarget("execution", exec.URL(), "", "exec-token", 5*time.Second))
+	fwd := forwarder.New(forwarder.NewTarget("execution", exec.URL(), "", 5*time.Second))
 
 	userQueue := ls.Queues["iam-user-events"]
 	startConsumer(t, buildConsumer(t, ls, "user", userQueue.QueueURL, fwd, 2*time.Second))
@@ -264,7 +264,7 @@ func TestLocalStackFlow_TransientFailureIsNotDeadLettered(t *testing.T) {
 	defer exec.Close()
 	exec.SetStatus(http.StatusServiceUnavailable)
 
-	fwd := forwarder.New(forwarder.NewTarget("execution", exec.URL(), "", "exec-token", 5*time.Second))
+	fwd := forwarder.New(forwarder.NewTarget("execution", exec.URL(), "", 5*time.Second))
 
 	userQueue := ls.Queues["iam-user-events"]
 	startConsumer(t, buildConsumer(t, ls, "user", userQueue.QueueURL, fwd, 2*time.Second))
@@ -286,7 +286,7 @@ func TestLocalStackFlow_SchemaEncodedEventIsForwardedUnchanged(t *testing.T) {
 
 	exec := mocks.NewDownstream()
 	defer exec.Close()
-	fwd := forwarder.New(forwarder.NewTarget("execution", exec.URL(), "", "exec-token", 5*time.Second))
+	fwd := forwarder.New(forwarder.NewTarget("execution", exec.URL(), "", 5*time.Second))
 
 	membershipQueue := ls.Queues["iam-membership-events"]
 	startConsumer(t, buildConsumer(t, ls, "membership", membershipQueue.QueueURL, fwd, 5*time.Second))
