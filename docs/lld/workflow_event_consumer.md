@@ -9,8 +9,8 @@
 | Document Type | Low-Level Design (LLD) |
 | Service | Workflow Events Consumer (`workflow-events-consumer`, repository `workflow-event-consumer`) |
 | Subsystem | Workflow Engine — inbound event delivery |
-| Version | 1.10 |
-| Date | 2026-11-03 |
+| Version | 1.14 |
+| Date | 2026-11-11 |
 | Status | Approved |
 | Audience | Workflow Engine team, IAM, platform/infra |
 | Owner database | None (stateless) |
@@ -30,6 +30,10 @@
 | 1.8 | 2026-10-27 | **The local stack filters as production does, and every alert names its runbook section** (§3.1, §3.2, §8). The LocalStack subscriptions carried no filter, so locally every event on a topic arrived; they now use the approved `EventType` filters. `MembershipRevoked` and `TenantMembershipsPurged` are inside the membership queue's filter (rev 1.6), which two rows still contradicted. Definition marks a returned tenant on any other `TenantStateChanged` status. Each alert carries a `runbook` annotation naming its section of the runbook. |
 | 1.9 | 2026-11-01 | **The dashboard queue carries the Execution Service's full catalog** (§3.1, §3.2, §3.4). The queue's filter and the routes listed eleven of the 18 event types. `WorkflowTaskClaimed`, `WorkflowTaskSuperseded`, `WorkflowTaskFailed`, `WorkflowInstanceDegraded` and `WorkflowInstanceFailed` now route to the Stream Gateway, which makes sixteen; `WorkflowInstanceStarted` and `WorkflowInstanceForceRouted` carry an empty route. The Execution Service adds `started_by_user_id` to the degraded and failed events so the gateway can route them. |
 | 1.10 | 2026-11-03 | **The header matches the revision history** (header). The header still said version 1.5 of 2026-10-19 after rows 1.6 to 1.9. The receive-stall readiness watch now lives in the observability package, the only place that imports the Prometheus client, and `make lint` forbids the platform-library bypasses; behaviour is unchanged. |
+| 1.11 | 2026-11-11 | **The membership events name the pause scope** (§3.2). A department revocation causes a pause only of the instances that hold the user's task in the revoked department; a tenant-wide revocation causes a pause of every instance that holds a task of the user. |
+| 1.12 | 2026-11-11 | **The consumer forwards with the system caller identity and no per-target token** (§4; §5; §6; Appendix A). Each forwarded request carries `x-user-id` and `x-tenant-roles` set to `iam-system`, and the targets admit it by mesh identity. The target token variables no longer exist. |
+| 1.13 | 2026-11-11 | **The forward counter carries a status class, a refused identity is logged at Error and the chart names are fixed** (§4; §7; §8). `workflow_events_consumer_forward_total` has a `status_class` label (`2xx`, `3xx`, `4xx`, `5xx`, `transport`, `none`). A `401` or `403` from a target is logged at Error with the queue, the target, the status and the event type. The chart sets `fullnameOverride: workflow-events-consumer`, so the ServiceAccount matches the callers' authorization policies whatever the release is called. |
+| 1.14 | 2026-11-11 | **The ServiceAccount is always `workflow-events-consumer`** (§8). The pods run as the chart's fixed name in every case, so the authorization policies of the Definition Service, the Execution Service and the Stream Gateway admit them. A different `serviceAccount.name` fails the render. |
 
 ---
 
@@ -99,8 +103,8 @@ An event type absent from the topology's routes is sent to every target that acc
 | Event type | Topic | Queue | Targets | Behaviour |
 | --- | --- | --- | --- | --- |
 | `TenantStateChanged` | `iam-membership-events` | `membership-workflow-q` | execution, definition | The resolved tenant lifecycle relay. Execution pauses, resumes or terminates the tenant's instances; for a status of offboarded Definition records the tenant for the purge of its templates and credentials, and any other status marks a recorded tenant as returned. |
-| `DepartmentMembershipRevoked` | `iam-membership-events` | `membership-workflow-q` | definition | A department membership removal. Definition invalidates templates the user is a default assignee on. |
-| `MembershipRevoked` | `iam-membership-events` | `membership-workflow-q` | definition, execution | A user removed from a tenant. Definition invalidates their default assignments and Execution vacates their active assignments. |
+| `DepartmentMembershipRevoked` | `iam-membership-events` | `membership-workflow-q` | definition | A department membership removal. Definition invalidates the draft and published versions the user is a default assignee on in that department and asks Execution to pause only the instances that hold the user's task in that department. |
+| `MembershipRevoked` | `iam-membership-events` | `membership-workflow-q` | definition, execution | A user removed from a tenant. Definition invalidates every draft and published version the user is a default assignee on and asks Execution to pause every instance that holds a task of the user; Execution also vacates the user's active assignments. |
 | `TenantMembershipsPurged` | `iam-membership-events` | `membership-workflow-q` | execution, definition | The tenant offboarding cascade signal. Execution terminates the tenant's non-terminal instances and Definition records the tenant for the purge of its templates and credentials. |
 | `TenderAssigneeOverridden` | `iam-membership-events` | `membership-workflow-q` | none (dropped) | A tender assignee override. Execution applies overrides through its node-override endpoint, so the event is dropped. |
 | `DepartmentMembershipGranted` | `iam-membership-events` | `membership-workflow-q` | none (dropped) | A department membership grant. Eligibility is a live call, so the event is dropped. |
@@ -152,10 +156,10 @@ The Execution Service publishes 18 event types to `wf-workflow-events` for the a
 ## 4. Forwarding and Failure Semantics
 
 1. **Original body.** The consumer forwards the message body exactly as received. A schema-encoded event reaches its target with the payload and `dataschema` intact, and the target decodes it. The consumer decodes nothing.
-2. **Authentication.** Each request carries the target's own internal token and the trace context. Outside `dev` and `local` every target address is https, or http naming a port, and every token is set, and the client follows no redirect, so the token reaches only the configured host.
+2. **Authentication.** Each request carries the reserved system identity (`x-user-id` and `x-tenant-roles` set to `iam-system`) and the trace context. The event body is forwarded unmodified. Mutual TLS in the mesh names the consumer, and the target's authorization policy admits it. Outside `dev` and `local` every target address is https, or http naming a port, and the client follows no redirect, so a request reaches only the configured host.
 3. **Acknowledgement.** A message is deleted only after every target it was routed to answers 2xx.
 4. **Permanent failures.** An answer of 400, 413 or 422 states that the request is malformed and cannot succeed later. When every failing target answers permanently, the consumer sends the original message to the queue's dead-letter queue with a reason naming the target and status, and deletes it from the source queue. If the dead-letter send fails, the message stays on the queue.
-5. **Transient failures.** Every other failure, including 401, 403, 404, 408, 429, 5xx and network errors, leaves the message on the queue for redelivery with backoff. A `502` with the code `EVENT_DECODE_FAILED`, answered when an envelope's registry-framed payload cannot be decoded, is one of these. A permanent answer alongside a transient one is retried, because the transient target still needs the message. The SNS subscriptions into the queues use raw message delivery, as `platform-events` requires; without it the body is an SNS wrapper that no target can read.
+5. **Transient failures.** Every other failure, including 401, 403, 404, 408, 429, 5xx and network errors, leaves the message on the queue for redelivery with backoff. A `502` with the code `EVENT_DECODE_FAILED`, answered when an envelope's registry-framed payload cannot be decoded, is one of these. A `401` or `403` from a target is logged at Error with the queue, the target, the status and the event type, because its cause is a wrong caller identity or a policy denial that redelivery does not cure. A permanent answer alongside a transient one is retried, because the transient target still needs the message. The SNS subscriptions into the queues use raw message delivery, as `platform-events` requires; without it the body is an SNS wrapper that no target can read.
 6. **Receive threshold.** The consumer handles a message on its first four receives and dead-letters it on the fifth, one below the queues' redrive count of five, so the dead-letter reason is the consumer's own; a message past the threshold is forwarded without another handling attempt. With the default backoff base of 30 seconds a message is handled at 0, 30 seconds, 90 seconds and 210 seconds and dead-lettered at 450 seconds, so a target outage of about three and a half minutes is survived, which covers a rolling deploy of a target, and a longer one dead-letters what arrived during it and needs a redrive from the dead-letter queue. `MAX_RECEIVE_COUNT` (default 4, at least 1) sets the threshold: raising it to 5 extends the survived outage to about seven and a half minutes, and the redrive count of every queue, which infrastructure owns, must be raised above it first, or SQS moves the message before the consumer dead-letters it. Each queue's redrive count stays above the threshold, and an alert fires when any dead-letter queue is not empty, which also covers SQS moving a message itself.
 7. **Startup.** A queue without a redrive policy fails startup, as does an unset `APP_ENV` or `AWS_REGION`.
 8. **Receive health.** The health endpoint answers 503 until the first receive has succeeded and again when no receive has succeeded for `RECEIVE_STALL_WINDOW` (default two minutes), so a bad rollout never replaces a healthy pod and a consumer that cannot receive, for a denied permission, a wrong queue or a wrong region, stops being ready and is restarted.
@@ -164,7 +168,7 @@ The Execution Service publishes 18 event types to `wf-workflow-events` for the a
 
 ## 5. Topology File
 
-One file declares the targets, the queues and the routes: a route maps an event type to a list of targets, and an empty list drops the type. Adding a queue, a target or a route is a configuration change. The file holds no secrets; each target names the environment variable that holds its token. The chart's values, the IAM policy and the AsyncAPI contract change together with the example file, and tests fail when they differ.
+One file declares the targets, the queues and the routes: a route maps an event type to a list of targets, and an empty list drops the type. Adding a queue, a target or a route is a configuration change. The file holds no secrets. The chart's values, the IAM policy and the AsyncAPI contract change together with the example file, and tests fail when they differ.
 
 ---
 
@@ -172,7 +176,7 @@ One file declares the targets, the queues and the routes: a route maps an event 
 
 | Variable | Purpose |
 | --- | --- |
-| `APP_ENV` | Required: `local`, `dev`, `test`, `staging` or `prod`; outside `dev` and `local` every target's token variable must be set |
+| `APP_ENV` | Required: `local`, `dev`, `test`, `staging` or `prod`; outside `dev` and `local` every target address must be https, or http naming a port |
 | `TOPOLOGY_CONFIG_PATH` | Path to the topology file |
 | `AWS_REGION`, `AWS_ENDPOINT_URL` | Region (required) and emulator override |
 | `CONSUMER_CONCURRENCY` | Concurrent handlers per queue |
@@ -190,7 +194,7 @@ A malformed number or duration fails startup.
 
 ## 7. Observability
 
-Service metrics are `workflow_events_consumer_*`: forward attempts by queue, target and result (`ok`, `error`, `skipped`), forward duration, and handler duration by result (`ok`, `error`, `dead_lettered`, `dropped`). The consume, dead-letter and queue-depth series are `platform_*` from `platform-events`, and a dead-letter the consumer sends is counted there once. `tenant_id` is never a label. Message bodies are never logged; a malformed body is recorded by size and SHA-256 and kept in the dead-letter queue. Alerts cover failing messages, dead-lettered messages, a non-empty dead-letter queue, a failing receive, a queue backlog and handler panics. The metric registry is generated from a real scrape and checked in CI.
+Service metrics are `workflow_events_consumer_*`: forward attempts by queue, target, result (`ok`, `error`, `skipped`) and status class (`2xx`, `3xx`, `4xx`, `5xx`, `transport` for no answer, `none` for a skipped target), forward duration, and handler duration by result (`ok`, `error`, `dead_lettered`, `dropped`). The consume, dead-letter and queue-depth series are `platform_*` from `platform-events`, and a dead-letter the consumer sends is counted there once. `tenant_id` is never a label. Message bodies are never logged; a malformed body is recorded by size and SHA-256 and kept in the dead-letter queue. Alerts cover failing messages, dead-lettered messages, a non-empty dead-letter queue, a failing receive, a queue backlog and handler panics. The metric registry is generated from a real scrape and checked in CI.
 
 ---
 
@@ -198,7 +202,7 @@ Service metrics are `workflow_events_consumer_*`: forward attempts by queue, tar
 
 The service runs under a service account whose role grants, per queue, receive, delete, visibility change and attribute read, and per dead-letter queue, get-queue-URL, send and attribute read. Where the queues use a customer-managed key, the role also needs decrypt on the source queues' key and generate-data-key and decrypt on the dead-letter queues' key, each limited to use through SQS, and each key's policy allows the role. A queue fed by SNS uses SSE-SQS or a customer-managed key whose policy lets SNS generate data keys and decrypt; the AWS-managed SQS key cannot admit SNS. The role grants no publish, storage or registry action.
 
-The chart carries the topology, a pod disruption budget, an autoscaler, a network policy and a service monitor that is on by default; the alerts select the job by suffix because the service monitor prefixes it with the release name. The termination grace period exceeds the drain timeout plus the handler deadline. Liveness and readiness use the health endpoint of §4 item 8, and the metrics endpoint serves the same port. The image build never leaves the private-module credential in a layer, and the release build neither reads nor exports a registry cache.
+The chart carries the topology, a pod disruption budget, an autoscaler, a network policy and a service monitor that is on by default. The chart fixes its object names with `fullnameOverride: workflow-events-consumer`, so the Deployment, Service, ServiceAccount and ConfigMap names do not depend on the release name, and the ServiceAccount is the one that the authorization policies of the Definition Service, the Execution Service and the Stream Gateway admit. The pods always run as the ServiceAccount `workflow-events-consumer`, also when `serviceAccount.create` is false, and a different `serviceAccount.name` is refused at render with a message naming the callers' policies. The alerts select the job by a suffix match on that name. The termination grace period exceeds the drain timeout plus the handler deadline. Liveness and readiness use the health endpoint of §4 item 8, and the metrics endpoint serves the same port. The image build never leaves the private-module credential in a layer, and the release build neither reads nor exports a registry cache.
 
 ---
 
@@ -216,14 +220,14 @@ Unit tests cover routing, failure classification, the handler's dead-letter deci
 | 2 | The original message body is forwarded | A re-serialised envelope drops unknown fields and breaks schema-encoded payloads |
 | 3 | Routes are data in one topology file | A new queue, target or route needs no code change |
 | 4 | An empty target list drops an event type | It records that the type is known and deliberately not consumed |
-| 5 | Only 400, 413 and 422 are permanent | Those statuses state that the request is malformed; 401, 403 and 404 describe a token or a deployment that a later attempt can fix |
+| 5 | Only 400, 413 and 422 are permanent | Those statuses state that the request is malformed; 401, 403 and 404 describe an admission policy or a deployment that a later attempt can fix |
 | 6 | A permanent failure is dead-lettered after one delivery | Retrying an identical request cannot succeed and delays the operator's view |
 | 7 | The receive threshold is one below the queues' redrive count | The consumer's dead-letter carries the reason; SQS redrive is the backstop |
 | 8 | The Execution Service receives only categorised types | It registers one route per category and has no base route |
 | 9 | Each target deduplicates for itself | The consumer keeps no state |
 | 10 | Readiness depends on successful receives | The library retries a failing receive forever, so only the health endpoint can take a pod that consumes nothing out of service |
-| 11 | `APP_ENV` and `AWS_REGION` have no default | A default environment of `dev` accepted empty tokens in production, and a default region signed requests for the wrong queues |
-| 12 | Target addresses are https, or http naming a port, outside `dev` and `local`, and redirects are not followed | The in-cluster services serve plain HTTP on 8080, so the token travels in the cluster under the NetworkPolicies and never to another host |
+| 11 | `APP_ENV` and `AWS_REGION` have no default | A default environment of `dev` would relax the target address rule in production, and a default region signed requests for the wrong queues |
+| 12 | Target addresses are https, or http naming a port, outside `dev` and `local`, and redirects are not followed | The in-cluster services serve plain HTTP on 8080, so a request travels in the cluster under the NetworkPolicies and never to another host |
 | 13 | The retry window covers a rolling deploy of a target | A shorter window dead-letters every event that arrives while a target restarts |
 | 14 | The build credential lives only inside the `RUN` that uses it | A credential in a layer or in an exported cache is readable by anyone who can pull the image or the cache |
 

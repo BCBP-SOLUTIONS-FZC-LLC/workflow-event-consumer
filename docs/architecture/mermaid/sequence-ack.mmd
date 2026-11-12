@@ -13,7 +13,7 @@ sequenceDiagram
     H->>R: Resolve(envelope.Type)
     R-->>H: [target names]
     H->>F: Forward(ctx, queue, targets, body)
-    F->>T: POST /internal/events (x-internal-token)
+    F->>T: POST /internal/events (x-user-id, x-tenant-roles: iam-system)
     T-->>F: 2xx
     F-->>H: nil (all resolved targets succeeded)
     H-->>C: nil
