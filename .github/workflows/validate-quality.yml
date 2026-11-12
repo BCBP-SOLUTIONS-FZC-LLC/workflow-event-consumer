@@ -76,6 +76,7 @@ jobs:
       - name: Contract copy check
         env:
           GH_TOKEN: ${{ secrets.GO_PRIVATE_TOKEN }}
+          HEAD_REF: ${{ github.head_ref || github.ref_name }}
         run: make contract-check
 
       - uses: azure/setup-helm@v4

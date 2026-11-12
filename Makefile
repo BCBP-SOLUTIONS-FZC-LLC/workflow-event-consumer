@@ -36,7 +36,7 @@ COVER_PROFILE   := $(COVERAGE_DIR)/coverage.out
 COVER_HTML      := $(COVERAGE_DIR)/coverage.html
 COVER_THRESHOLD := 90
 
-.PHONY: contract-check metrics-lint metrics-inventory helm-lint helm-test lint-workflows pin-base-images all tools tools-integration setup install-hooks build test test-integration test-ci \
+.PHONY: contract-check contract-check-test metrics-lint metrics-inventory helm-lint helm-test lint-workflows pin-base-images all tools tools-integration setup install-hooks build test test-integration test-ci \
         merge-coverage cover cover-func cover-html cover-check cover-gate \
         tidy fmt-check fix check lint lint-fix arch-lint vuln \
         docker-build docker-build-mock-downstream docker-lint docker-trivy docker-check \
@@ -186,6 +186,7 @@ check:
 	@$(MAKE) arch-lint
 	@$(MAKE) metrics-lint
 	@$(MAKE) design-sync-check-test
+	@$(MAKE) contract-check-test
 	@$(MAKE) helm-lint
 	@$(MAKE) cover-check
 	@echo "✓ all checks passed"
@@ -202,9 +203,13 @@ arch-lint:
 lint-fix:
 	$(GOLANGCI) run --build-tags=integration --fix ./...
 
-## contract-check: Fail if a copied contract in api/contracts differs from its source (CONTRACT_SRC_DIR=<checkout> CONTRACT_SRC_REPO=<owner/repo> reads one source locally)
+## contract-check: Fail if a copied contract in api/contracts differs from its source; the source ref is the same-named branch of the source repo if it exists, else main (CONTRACT_SRC_REF overrides, CONTRACT_SRC_DIR=<checkout> CONTRACT_SRC_REPO=<owner/repo> reads one source locally)
 contract-check:
 	@scripts/contract-check.sh
+
+## contract-check-test: Test the contract-check script against throwaway repositories
+contract-check-test:
+	@scripts/contract-check_test.sh
 
 ## metrics-lint: Observability standard: collector naming, metricslint on a real scrape, alert and doc references, inventory drift
 metrics-lint:
