@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/BCBP-SOLUTIONS-FZC-LLC/platform-events/v2/pkg/events"
 
@@ -23,11 +22,11 @@ func buildDeps(cfg *config.Config, logger consumer.Logger) (*deps, error) {
 		return nil, fmt.Errorf("load topology: %w", err)
 	}
 
-	targets, err := topo.ResolveTargets(cfg.AppEnv, os.Getenv, cfg.ForwardTimeout)
+	targets, err := topo.ResolveTargets(cfg.AppEnv, cfg.ForwardTimeout)
 	if err != nil {
 		return nil, fmt.Errorf("resolve targets: %w", err)
 	}
-	fwd := forwarder.New(targets...)
+	fwd := forwarder.New(targets...).WithLogger(logger)
 	router := consumer.NewRouter(topo.Routes, topo.TargetNames())
 
 	deadLetters, err := events.NewSQSDLQPublisher(events.DLQConfig{

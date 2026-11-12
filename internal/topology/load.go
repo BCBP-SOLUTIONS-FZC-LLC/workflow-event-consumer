@@ -47,9 +47,6 @@ func (c Config) validate() error {
 		if t.Addr == "" {
 			return fmt.Errorf("target %q: addr is required", t.Name)
 		}
-		if t.TokenEnv == "" {
-			return fmt.Errorf("target %q: tokenEnv is required", t.Name)
-		}
 	}
 
 	queueNames := make(map[string]bool, len(c.Queues))

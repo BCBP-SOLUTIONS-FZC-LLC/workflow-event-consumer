@@ -10,7 +10,6 @@ type Config struct {
 type Target struct {
 	Name       string `yaml:"name"`
 	Addr       string `yaml:"addr"`
-	TokenEnv   string `yaml:"tokenEnv"`
 	PathPrefix string `yaml:"pathPrefix,omitempty"`
 }
 

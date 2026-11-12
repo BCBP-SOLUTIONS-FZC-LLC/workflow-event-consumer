@@ -2,9 +2,9 @@
 # internal/topology). Copy this file, fill in real queue URLs and target
 # addresses, and point TOPOLOGY_CONFIG_PATH at it.
 #
-# No secrets belong in this file — a target's addr is not sensitive, and its
-# own INTERNAL_API_TOKEN is only ever referenced by the environment variable
-# name that holds it (tokenEnv), never stored here.
+# No secrets belong in this file, and none are needed: every forwarded request
+# carries the system caller identity headers (x-user-id and x-tenant-roles,
+# both iam-system), and the mesh names this service to each target.
 #
 # Adding a queue, a downstream service, or a routing rule is a change to
 # this file only — no Go code change, no rebuild, just a redeploy.
@@ -21,15 +21,12 @@ version: 1
 targets:
   - name: execution
     addr: http://workflow-execution-service-api:8080
-    tokenEnv: EXECUTION_SERVICE_TOKEN
     pathPrefix: /api/v1/internal/events
   - name: definition
     addr: http://workflow-definition-service:8080
-    tokenEnv: DEFINITION_SERVICE_TOKEN
     pathPrefix: /api/v1/internal/events
   - name: workflow-stream-gateway
     addr: http://workflow-stream-gateway:8080
-    tokenEnv: WORKFLOW_STREAM_GATEWAY_TOKEN
     pathPrefix: /api/v1/internal/events
 
 queues:

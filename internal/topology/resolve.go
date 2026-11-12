@@ -9,19 +9,15 @@ import (
 	"github.com/BCBP-SOLUTIONS-FZC-LLC/workflow-events-consumer/internal/forwarder"
 )
 
-func (c Config) ResolveTargets(appEnv string, tokenLookup func(string) string, timeout time.Duration) ([]*forwarder.Target, error) {
+func (c Config) ResolveTargets(appEnv string, timeout time.Duration) ([]*forwarder.Target, error) {
 	targets := make([]*forwarder.Target, 0, len(c.Targets))
 	for _, t := range c.Targets {
-		token := tokenLookup(t.TokenEnv)
 		if appEnv != "dev" && appEnv != "local" {
-			if token == "" {
-				return nil, fmt.Errorf("topology: target %q: env var %s is required outside dev and local", t.Name, t.TokenEnv)
-			}
 			if err := checkTargetAddr(t.Addr); err != nil {
 				return nil, fmt.Errorf("topology: target %q: addr %w outside dev and local", t.Name, err)
 			}
 		}
-		targets = append(targets, forwarder.NewTarget(t.Name, t.Addr, t.PathPrefix, token, timeout))
+		targets = append(targets, forwarder.NewTarget(t.Name, t.Addr, t.PathPrefix, timeout))
 	}
 	return targets, nil
 }
