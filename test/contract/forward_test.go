@@ -18,8 +18,6 @@ import (
 	"github.com/BCBP-SOLUTIONS-FZC-LLC/workflow-events-consumer/test/contract"
 )
 
-const token = "target-token"
-
 func TestMain(m *testing.M) {
 	obstest.Setup()
 	os.Exit(m.Run())
@@ -68,14 +66,17 @@ func forwardOnce(t *testing.T, spec *contract.Spec, target, eventType string, st
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path = r.URL.Path
 		spec.Request(t, r)
-		if r.Header.Get("x-internal-token") != token {
-			t.Errorf("x-internal-token = %q, want the target's token", r.Header.Get("x-internal-token"))
+		if r.Header.Get("x-user-id") != "iam-system" || r.Header.Get("x-tenant-roles") != "iam-system" {
+			t.Errorf("identity headers = %q / %q, want iam-system / iam-system", r.Header.Get("x-user-id"), r.Header.Get("x-tenant-roles"))
+		}
+		if v := r.Header.Values("x-internal-token"); len(v) != 0 {
+			t.Errorf("x-internal-token = %q, the shared token is retired", v)
 		}
 		_, _ = io.Copy(io.Discard, r.Body)
 		w.WriteHeader(status)
 	}))
 	defer srv.Close()
-	f := forwarder.New(forwarder.NewTarget(target, srv.URL, "", token, time.Second))
+	f := forwarder.New(forwarder.NewTarget(target, srv.URL, "", time.Second))
 	err := f.Forward(t.Context(), "q", []string{target}, eventType, envelope(eventType))
 	return path, err
 }

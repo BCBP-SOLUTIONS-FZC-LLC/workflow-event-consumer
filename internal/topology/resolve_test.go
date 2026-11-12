@@ -11,36 +11,26 @@ import (
 func testConfig() Config {
 	return Config{
 		Targets: []Target{
-			{Name: "execution", Addr: "https://execution.internal", TokenEnv: "EXECUTION_SERVICE_TOKEN"},
-			{Name: "definition", Addr: "https://definition.internal", TokenEnv: "DEFINITION_SERVICE_TOKEN"},
+			{Name: "execution", Addr: "https://execution.internal"},
+			{Name: "definition", Addr: "https://definition.internal"},
 		},
 		Queues: []Queue{{Name: "membership", URL: "https://sqs/membership"}},
 	}
 }
 
 func TestResolveTargets_Success(t *testing.T) {
-	tokens := map[string]string{"EXECUTION_SERVICE_TOKEN": "exec-tok", "DEFINITION_SERVICE_TOKEN": "def-tok"}
-	targets, err := testConfig().ResolveTargets("dev", func(k string) string { return tokens[k] }, time.Second)
+	targets, err := testConfig().ResolveTargets("dev", time.Second)
 	require.NoError(t, err)
 	require.Len(t, targets, 2)
 	assert.Equal(t, "execution", targets[0].Name)
 	assert.Equal(t, "definition", targets[1].Name)
 }
 
-func TestResolveTargets_DevAllowsMissingToken(t *testing.T) {
-	targets, err := testConfig().ResolveTargets("dev", func(string) string { return "" }, time.Second)
-	require.NoError(t, err)
-	assert.Len(t, targets, 2)
-}
-
-func TestResolveTargets_RequiresATokenOutsideDevAndLocal(t *testing.T) {
-	for _, env := range []string{"test", "staging", "prod"} {
-		_, err := testConfig().ResolveTargets(env, func(string) string { return "" }, time.Second)
-		assert.Error(t, err, env)
-	}
-	for _, env := range []string{"dev", "local"} {
-		_, err := testConfig().ResolveTargets(env, func(string) string { return "" }, time.Second)
-		assert.NoError(t, err, env)
+func TestResolveTargets_NeedsNoSecretInAnyEnvironment(t *testing.T) {
+	for _, env := range []string{"dev", "local", "test", "staging", "prod"} {
+		targets, err := testConfig().ResolveTargets(env, time.Second)
+		require.NoError(t, err, env)
+		assert.Len(t, targets, 2, env)
 	}
 }
 
@@ -49,7 +39,6 @@ func TestTargetNames(t *testing.T) {
 }
 
 func TestResolveTargets_OutsideDevAndLocalTakesHTTPSOrHTTPWithAPort(t *testing.T) {
-	token := func(string) string { return "tok" }
 	cases := []struct {
 		addr    string
 		wantErr bool
@@ -66,7 +55,7 @@ func TestResolveTargets_OutsideDevAndLocalTakesHTTPSOrHTTPWithAPort(t *testing.T
 		cfg := testConfig()
 		cfg.Targets[0].Addr = tc.addr
 		for _, env := range []string{"test", "staging", "prod"} {
-			_, err := cfg.ResolveTargets(env, token, time.Second)
+			_, err := cfg.ResolveTargets(env, time.Second)
 			if tc.wantErr {
 				require.Error(t, err, "%q in %s", tc.addr, env)
 				assert.Contains(t, err.Error(), "addr", env)
@@ -78,7 +67,7 @@ func TestResolveTargets_OutsideDevAndLocalTakesHTTPSOrHTTPWithAPort(t *testing.T
 	cfg := testConfig()
 	cfg.Targets[0].Addr = "http://execution.internal"
 	for _, env := range []string{"dev", "local"} {
-		_, err := cfg.ResolveTargets(env, token, time.Second)
+		_, err := cfg.ResolveTargets(env, time.Second)
 		assert.NoError(t, err, env)
 	}
 }

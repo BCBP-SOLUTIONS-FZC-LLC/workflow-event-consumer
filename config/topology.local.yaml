@@ -3,10 +3,8 @@ version: 1
 targets:
   - name: execution
     addr: http://mock-execution:8090
-    tokenEnv: EXECUTION_SERVICE_TOKEN
   - name: definition
     addr: http://mock-definition:8090
-    tokenEnv: DEFINITION_SERVICE_TOKEN
 
 queues:
   - name: membership

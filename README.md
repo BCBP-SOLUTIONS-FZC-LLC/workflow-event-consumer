@@ -52,12 +52,11 @@ in **one file** — [`config/topology.example.yaml`](config/topology.example.yam
 service, or a routing rule is a change to that file only, never to Go code.
 Copy it to `config/topology.yaml`, fill in real queue URLs and target
 addresses, and point `TOPOLOGY_CONFIG_PATH` at it. No secrets belong in that
-file — each target only names the environment variable (`tokenEnv`) holding
-its own token.
+file, and none are needed: every forwarded request carries `x-user-id: iam-system` and `x-tenant-roles: iam-system`, and the mesh names this service to each target.
 
 | Env var | Purpose |
 | --- | --- |
-| `APP_ENV` | Required. One of `local`, `dev`, `test`, `staging`, `prod`; any other value fails startup. Outside `dev` and `local` every target address must be https, or http naming a port (the in-cluster services serve plain HTTP on 8080), and every target token env var must be set |
+| `APP_ENV` | Required. One of `local`, `dev`, `test`, `staging`, `prod`; any other value fails startup. Outside `dev` and `local` every target address must be https, or http naming a port (the in-cluster services serve plain HTTP on 8080) |
 | `HEALTH_PORT` | `/healthz`, `/readyz` and `/metrics` listen port (default `8082`) |
 | `TOPOLOGY_CONFIG_PATH` | Path to the topology YAML file (default `config/topology.yaml`) |
 | `AWS_REGION`, `AWS_ENDPOINT_URL` | AWS SDK region (required) and LocalStack override |
@@ -71,10 +70,11 @@ its own token.
 | `RECEIVE_STALL_WINDOW` | How long without a successful receive before `/readyz` answers 503 (default `2m`) |
 | `QUEUE_DEPTH_INTERVAL` | Cadence of the queue-depth metric (default `30s`) |
 | `OTEL_SERVICE_NAME`, `OTEL_EXPORTER_OTLP_ENDPOINT` | Trace and metric identity; export is off when the endpoint is unset or `none`. The NetworkPolicy allows egress on 443 and the target ports only, so a collector on another port (the usual 4317) needs an entry in `networkPolicy.additionalEgressRules` |
-| *(one per target, named in topology.yaml's `tokenEnv`)* | e.g. `EXECUTION_SERVICE_TOKEN`, `DEFINITION_SERVICE_TOKEN` |
 
-Each downstream service mints and rotates its own `INTERNAL_API_TOKEN`
-independently — tokens are never assumed to be the same value across targets.
+Each target admits this service by its identity, not by a token: the forwarded
+request is the event body, unmodified, with the two identity headers (`x-user-id`, `x-tenant-roles`) and the trace
+context. A `topology.yaml` that still names the retired `tokenEnv` is read and
+the field is ignored.
 
 AWS SDK credentials come from its default provider chain (IRSA / instance
 role in real environments); against LocalStack, set
@@ -107,7 +107,7 @@ make test              # unit tests, using test/mocks' mock downstreams
 make test-integration  # requires Docker; real LocalStack SNS and SQS
 make test-ci           # both suites, merged coverage
 make check             # format, lint (integration tag included), vet, import rules, the observability standard, the design-sync script's test, chart lint and the coverage gate
-make contract-check    # api/contracts matches its source (needs GH_TOKEN, or CONTRACT_SRC_DIR=<checkout> with CONTRACT_SRC_REPO=<owner/repo> for one local source)
+make contract-check    # api/contracts matches its source, read from the source repo's same-named branch, else main (needs GH_TOKEN, or CONTRACT_SRC_DIR=<checkout> with CONTRACT_SRC_REPO=<owner/repo> for one local source)
 ```
 
 `make test` also runs `test/contract`: every event type the topology routes to the Definition Service or the Execution Service is forwarded through the real forwarder and held to that service's OpenAPI copy in `api/contracts/`.
@@ -130,7 +130,7 @@ make contract-check    # api/contracts matches its source (needs GH_TOKEN, or CO
 
 ## Deployment
 
-One image from the `Dockerfile` (target `event-consumer`), base images pinned by digest. The chart in `deploy/helm` has a Deployment, a PDB, a NetworkPolicy, an optional HPA and `ServiceMonitor`, and renders the topology into a ConfigMap. `deploy/aws` holds the IAM policy of the service's role: SQS receive, delete, change-visibility and attribute reads on the topology's queues, and nothing else. A test fails when the chart's topology or the policy differs from `config/topology.example.yaml`. `deploy/monitoring/app-alerts.yml` holds the alert rules.
+One image from the `Dockerfile` (target `event-consumer`), base images pinned by digest. The chart in `deploy/helm` has a Deployment, a PDB, a NetworkPolicy, an optional HPA and `ServiceMonitor`, and renders the topology into a ConfigMap. The names are fixed (`fullnameOverride: workflow-events-consumer`): the Deployment, Service and ServiceAccount are `workflow-events-consumer` whatever the release is called, because the Definition, Execution and Stream Gateway policies admit that service account, so install one release per namespace. **Upgrading from a chart that named objects after the release:** the old chart's Secret `<release>-workflow-events-consumer` carried `helm.sh/resource-policy: keep` and stays in the cluster with the retired per-target tokens; delete it by hand after the upgrade (`kubectl delete secret <release>-workflow-events-consumer -n <namespace>`), and expect the Deployment, Service and ServiceAccount to be replaced under their new names. `deploy/aws` holds the IAM policy of the service's role: SQS receive, delete, change-visibility and attribute reads on the topology's queues, and nothing else. A test fails when the chart's topology or the policy differs from `config/topology.example.yaml`. `deploy/monitoring/app-alerts.yml` holds the alert rules.
 
 ## Observability
 
@@ -138,7 +138,7 @@ Every series carries `domain` (`workflow`), `service` (`workflow-events-consumer
 
 ## Security
 
-- Each target has its own token, sent as `x-internal-token`; outside dev and local startup fails if any target's token is missing.
+- Forwarded requests carry the system caller identity (`x-user-id` and `x-tenant-roles`, both `iam-system`) and no shared token. The headers are not a credential: mesh mutual TLS names this service, and each target's `AuthorizationPolicy` admits it. The service has no internal routes of its own, so the chart ships no `AuthorizationPolicy`.
 - The IAM role can only consume SQS and send dead-letters; it never publishes and never touches S3 or Glue. With customer-managed queue keys it also needs the KMS statements in `deploy/aws/policy-kms.json`.
 - The health server serves `/healthz`, `/readyz` and `/metrics` only, with read, write and idle timeouts. `/healthz` is liveness and answers while the process serves. `/readyz` answers 503 until the first SQS receive has succeeded and again when none has succeeded for `RECEIVE_STALL_WINDOW` (two minutes by default), so a consumer that cannot receive is taken out of service; the chart's liveness probe does not follow it, since a restart cannot fix an SQS or STS outage.
 - Container: distroless, non-root, read-only root filesystem, all capabilities dropped.

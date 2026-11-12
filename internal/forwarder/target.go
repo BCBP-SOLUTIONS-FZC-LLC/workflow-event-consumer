@@ -13,7 +13,10 @@ import (
 	"github.com/BCBP-SOLUTIONS-FZC-LLC/platform-gincommon/pkg/gincommon"
 )
 
-const defaultPathPrefix = "/api/v1/internal/events"
+const (
+	defaultPathPrefix = "/api/v1/internal/events"
+	systemCaller      = "iam-system"
+)
 
 type StatusError struct {
 	Target string
@@ -52,11 +55,10 @@ type Target struct {
 	Name       string
 	addr       string
 	pathPrefix string
-	token      string
 	http       *http.Client
 }
 
-func NewTarget(name, addr, pathPrefix, token string, timeout time.Duration) *Target {
+func NewTarget(name, addr, pathPrefix string, timeout time.Duration) *Target {
 	if pathPrefix == "" {
 		pathPrefix = defaultPathPrefix
 	}
@@ -64,7 +66,6 @@ func NewTarget(name, addr, pathPrefix, token string, timeout time.Duration) *Tar
 		Name:       name,
 		addr:       strings.TrimRight(addr, "/"),
 		pathPrefix: strings.TrimRight(pathPrefix, "/"),
-		token:      token,
 		http: &http.Client{
 			Timeout:       timeout,
 			CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
@@ -94,7 +95,8 @@ func (t *Target) forward(ctx context.Context, eventType string, body []byte) err
 		return fmt.Errorf("build request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("x-internal-token", t.token)
+	req.Header.Set("x-user-id", systemCaller)
+	req.Header.Set("x-tenant-roles", systemCaller)
 
 	gincommon.InjectTraceContext(ctx, req.Header)
 

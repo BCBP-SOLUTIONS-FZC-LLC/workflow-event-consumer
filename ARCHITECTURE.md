@@ -26,7 +26,7 @@ graph TD
 
     subgraph topology["internal/topology/"]
         topoload["load.go — Load(path) config/topology.yaml\nvalidate: unique names, routes reference\nonly declared targets"]
-        resolve["resolve.go — ResolveTargets(appEnv, os.Getenv)\nreads each target's tokenEnv"]
+        resolve["resolve.go — ResolveTargets(appEnv, timeout)\nchecks target addresses outside dev"]
     end
 
     subgraph consumer["internal/consumer/"]
@@ -37,7 +37,7 @@ graph TD
 
     subgraph forwarder["internal/forwarder/"]
         fwd["forwarder.go\nForwarder — concurrent fan-out to\nnamed targets, all-or-nothing result"]
-        target["target.go\nTarget — single HTTP POST\n/api/v1/internal/events + x-internal-token"]
+        target["target.go\nTarget — single HTTP POST\n/api/v1/internal/events\n+ x-user-id, x-tenant-roles: iam-system"]
     end
 
     subgraph observability["internal/observability/"]
@@ -118,7 +118,7 @@ consumer per queue entry and one `forwarder.Target` per target entry, at
 whatever count the file declares. Adding a fourth downstream service or a
 fourth queue is a YAML edit + redeploy; nothing in `internal/` hardcodes a
 count of 2 or 3. See [README.md](README.md#configuration) for how queue URLs
-and target addresses/tokens are populated differently across local, Docker
+and target addresses are populated differently across local, Docker
 Compose, and Kubernetes.
 
 ---
@@ -154,7 +154,7 @@ sequenceDiagram
     H->>R: Resolve(envelope.Type)
     R-->>H: [target names]
     H->>F: Forward(ctx, queue, targets, body)
-    F->>T: POST /api/v1/internal/events (x-internal-token)
+    F->>T: POST /api/v1/internal/events (x-user-id, x-tenant-roles: iam-system)
     T-->>F: 2xx
     F-->>H: nil (all resolved targets succeeded)
     H-->>C: nil

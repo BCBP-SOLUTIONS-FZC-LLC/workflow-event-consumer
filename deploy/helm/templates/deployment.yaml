@@ -22,9 +22,6 @@ spec:
         {{- include "workflow-events-consumer.labels" . | nindent 8 }}
       annotations:
         checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
-        {{- if not .Values.existingSecret }}
-        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
-        {{- end }}
     spec:
       terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
       serviceAccountName: {{ include "workflow-events-consumer.serviceAccountName" . }}
@@ -56,9 +53,6 @@ spec:
             - name: {{ $k }}
               value: {{ $v | quote }}
             {{- end }}
-          envFrom:
-            - secretRef:
-                name: {{ include "workflow-events-consumer.secretName" . }}
           volumeMounts:
             - name: topology
               mountPath: /etc/event-consumer

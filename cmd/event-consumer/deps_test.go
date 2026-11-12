@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/BCBP-SOLUTIONS-FZC-LLC/workflow-events-consumer/internal/config"
+	"github.com/BCBP-SOLUTIONS-FZC-LLC/workflow-events-consumer/internal/topology"
 )
 
 func depsConfig(topologyPath string) *config.Config {
@@ -22,10 +23,13 @@ func TestBuildDeps_OneConsumerPerQueueOfTheTopology(t *testing.T) {
 	t.Setenv("AWS_ACCESS_KEY_ID", "test")
 	t.Setenv("AWS_SECRET_ACCESS_KEY", "test")
 
+	topo, err := topology.Load("../../config/topology.example.yaml")
+	require.NoError(t, err)
+
 	d, err := buildDeps(depsConfig("../../config/topology.example.yaml"), nopLogger{})
 
 	require.NoError(t, err)
-	assert.Len(t, d.consumers, 4)
+	assert.Len(t, d.consumers, len(topo.Queues))
 }
 
 func TestBuildDeps_FailsOnAMissingTopology(t *testing.T) {
@@ -35,15 +39,14 @@ func TestBuildDeps_FailsOnAMissingTopology(t *testing.T) {
 	assert.Contains(t, err.Error(), "load topology")
 }
 
-func TestBuildDeps_RefusesAnEmptyTokenOutsideDev(t *testing.T) {
+func TestBuildDeps_NeedsNoTargetSecretOutsideDev(t *testing.T) {
+	t.Setenv("AWS_ACCESS_KEY_ID", "test")
+	t.Setenv("AWS_SECRET_ACCESS_KEY", "test")
 	cfg := depsConfig("../../config/topology.example.yaml")
 	cfg.AppEnv = "prod"
-	for _, name := range []string{"EXECUTION_SERVICE_TOKEN", "DEFINITION_SERVICE_TOKEN", "WORKFLOW_STREAM_GATEWAY_TOKEN"} {
-		t.Setenv(name, "")
-	}
 
-	_, err := buildDeps(cfg, nopLogger{})
+	d, err := buildDeps(cfg, nopLogger{})
 
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "resolve targets")
+	require.NoError(t, err)
+	assert.NotEmpty(t, d.consumers, "a production topology builds with no secret in the environment")
 }

@@ -36,7 +36,7 @@ COVER_PROFILE   := $(COVERAGE_DIR)/coverage.out
 COVER_HTML      := $(COVERAGE_DIR)/coverage.html
 COVER_THRESHOLD := 90
 
-.PHONY: contract-check metrics-lint metrics-inventory helm-lint lint-workflows pin-base-images all tools tools-integration setup install-hooks build test test-integration test-ci \
+.PHONY: contract-check contract-check-test metrics-lint metrics-inventory helm-lint helm-test lint-workflows pin-base-images all tools tools-integration setup install-hooks build test test-integration test-ci \
         merge-coverage cover cover-func cover-html cover-check cover-gate \
         tidy fmt-check fix check lint lint-fix arch-lint vuln \
         docker-build docker-build-mock-downstream docker-lint docker-trivy docker-check \
@@ -186,6 +186,7 @@ check:
 	@$(MAKE) arch-lint
 	@$(MAKE) metrics-lint
 	@$(MAKE) design-sync-check-test
+	@$(MAKE) contract-check-test
 	@$(MAKE) helm-lint
 	@$(MAKE) cover-check
 	@echo "✓ all checks passed"
@@ -202,9 +203,13 @@ arch-lint:
 lint-fix:
 	$(GOLANGCI) run --build-tags=integration --fix ./...
 
-## contract-check: Fail if a copied contract in api/contracts differs from its source (CONTRACT_SRC_DIR=<checkout> CONTRACT_SRC_REPO=<owner/repo> reads one source locally)
+## contract-check: Fail if a copied contract in api/contracts differs from its source; the source ref is the same-named branch of the source repo if it exists, else main (CONTRACT_SRC_REF overrides, CONTRACT_SRC_DIR=<checkout> CONTRACT_SRC_REPO=<owner/repo> reads one source locally)
 contract-check:
 	@scripts/contract-check.sh
+
+## contract-check-test: Test the contract-check script against throwaway repositories
+contract-check-test:
+	@scripts/contract-check_test.sh
 
 ## metrics-lint: Observability standard: collector naming, metricslint on a real scrape, alert and doc references, inventory drift
 metrics-lint:
@@ -219,16 +224,17 @@ metrics-inventory:
 lint-workflows:
 	$(ACTIONLINT)
 
-HELM_LINT_VALUES := --set-string secretValues.EXECUTION_SERVICE_TOKEN=placeholder \
-	  --set-string secretValues.DEFINITION_SERVICE_TOKEN=placeholder \
-	  --set-string secretValues.WORKFLOW_STREAM_GATEWAY_TOKEN=placeholder
+## helm-test: Decode the rendered chart and check the fixed names and that no token is named (needs helm)
+helm-test:
+	go test -count=1 ./test/chart/...
 
 ## helm-lint: Lint the Helm chart and validate its rendered manifests against the Kubernetes API schema
 helm-lint:
-	$(HELM) lint deploy/helm $(HELM_LINT_VALUES)
+	$(HELM) lint deploy/helm
 	@mkdir -p $(TOOLS_DIR)
-	$(HELM) template deploy/helm $(HELM_LINT_VALUES) > $(TOOLS_DIR)/helm-rendered.yaml
+	$(HELM) template deploy/helm > $(TOOLS_DIR)/helm-rendered.yaml
 	$(KUBECONFORM) -strict -skip ServiceMonitor $(TOOLS_DIR)/helm-rendered.yaml
+	@$(MAKE) helm-test
 	@echo "✓ helm chart valid"
 
 ## pin-base-images: Resolve current digests for the Dockerfile base images and pin them

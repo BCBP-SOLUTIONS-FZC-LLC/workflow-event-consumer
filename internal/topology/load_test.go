@@ -23,10 +23,8 @@ version: 1
 targets:
   - name: execution
     addr: http://execution.internal
-    tokenEnv: EXECUTION_SERVICE_TOKEN
   - name: definition
     addr: http://definition.internal
-    tokenEnv: DEFINITION_SERVICE_TOKEN
 queues:
   - name: membership
     url: https://sqs/membership
@@ -44,6 +42,19 @@ func TestLoad_Valid(t *testing.T) {
 	assert.Len(t, cfg.Targets, 2)
 	assert.Len(t, cfg.Queues, 2)
 	assert.Equal(t, []string{"execution"}, cfg.Routes["DelegationStarted"])
+}
+
+func TestLoad_TargetsNeedNoToken(t *testing.T) {
+	cfg, err := Load(writeFile(t, "version: 1\ntargets: [{name: t, addr: http://t:8080}]\nqueues: [{name: q, url: u}]\n"))
+	require.NoError(t, err)
+	require.Len(t, cfg.Targets, 1)
+	assert.Equal(t, Target{Name: "t", Addr: "http://t:8080"}, cfg.Targets[0])
+}
+
+func TestLoad_DoesNotRejectUnknownFields_SoARetiredTokenEnvIsDropped(t *testing.T) {
+	cfg, err := Load(writeFile(t, "version: 1\ntargets: [{name: t, addr: http://t:8080, tokenEnv: OLD_TOKEN}]\nqueues: [{name: q, url: u}]\n"))
+	require.NoError(t, err)
+	assert.Equal(t, Target{Name: "t", Addr: "http://t:8080"}, cfg.Targets[0], "the loader does not reject unknown fields, so the retired tokenEnv is dropped")
 }
 
 func TestLoad_MissingFile(t *testing.T) {
@@ -70,47 +81,42 @@ func TestValidate(t *testing.T) {
 		},
 		{
 			name:    "no queues",
-			yaml:    "version: 1\ntargets: [{name: t, addr: a, tokenEnv: E}]\n",
+			yaml:    "version: 1\ntargets: [{name: t, addr: a}]\n",
 			wantErr: "at least one queue",
 		},
 		{
 			name:    "target missing name",
-			yaml:    "version: 1\ntargets: [{addr: a, tokenEnv: E}]\nqueues: [{name: q, url: u}]\n",
+			yaml:    "version: 1\ntargets: [{addr: a}]\nqueues: [{name: q, url: u}]\n",
 			wantErr: "target entry missing name",
 		},
 		{
 			name:    "duplicate target name",
-			yaml:    "version: 1\ntargets: [{name: t, addr: a, tokenEnv: E}, {name: t, addr: b, tokenEnv: F}]\nqueues: [{name: q, url: u}]\n",
+			yaml:    "version: 1\ntargets: [{name: t, addr: a}, {name: t, addr: b}]\nqueues: [{name: q, url: u}]\n",
 			wantErr: "duplicate name",
 		},
 		{
 			name:    "target missing addr",
-			yaml:    "version: 1\ntargets: [{name: t, tokenEnv: E}]\nqueues: [{name: q, url: u}]\n",
+			yaml:    "version: 1\ntargets: [{name: t}]\nqueues: [{name: q, url: u}]\n",
 			wantErr: "addr is required",
 		},
 		{
-			name:    "target missing tokenEnv",
-			yaml:    "version: 1\ntargets: [{name: t, addr: a}]\nqueues: [{name: q, url: u}]\n",
-			wantErr: "tokenEnv is required",
-		},
-		{
 			name:    "queue missing name",
-			yaml:    "version: 1\ntargets: [{name: t, addr: a, tokenEnv: E}]\nqueues: [{url: u}]\n",
+			yaml:    "version: 1\ntargets: [{name: t, addr: a}]\nqueues: [{url: u}]\n",
 			wantErr: "queue entry missing name",
 		},
 		{
 			name:    "duplicate queue name",
-			yaml:    "version: 1\ntargets: [{name: t, addr: a, tokenEnv: E}]\nqueues: [{name: q, url: u}, {name: q, url: v}]\n",
+			yaml:    "version: 1\ntargets: [{name: t, addr: a}]\nqueues: [{name: q, url: u}, {name: q, url: v}]\n",
 			wantErr: "duplicate name",
 		},
 		{
 			name:    "queue missing url",
-			yaml:    "version: 1\ntargets: [{name: t, addr: a, tokenEnv: E}]\nqueues: [{name: q}]\n",
+			yaml:    "version: 1\ntargets: [{name: t, addr: a}]\nqueues: [{name: q}]\n",
 			wantErr: "url is required",
 		},
 		{
 			name:    "route references undeclared target",
-			yaml:    "version: 1\ntargets: [{name: t, addr: a, tokenEnv: E}]\nqueues: [{name: q, url: u}]\nroutes: {SomeType: [nonexistent]}\n",
+			yaml:    "version: 1\ntargets: [{name: t, addr: a}]\nqueues: [{name: q, url: u}]\nroutes: {SomeType: [nonexistent]}\n",
 			wantErr: "undeclared target",
 		},
 	}
@@ -126,7 +132,7 @@ func TestValidate(t *testing.T) {
 
 func TestValidate_ExecutionOnlyReceivesCategorisedTypes(t *testing.T) {
 	cfg := Config{
-		Targets: []Target{{Name: "execution", Addr: "https://e", TokenEnv: "E"}},
+		Targets: []Target{{Name: "execution", Addr: "https://e"}},
 		Queues:  []Queue{{Name: "q", URL: "u"}},
 		Routes:  map[string][]string{"SomeFutureEventType": {"execution"}},
 	}

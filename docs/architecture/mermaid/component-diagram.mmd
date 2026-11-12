@@ -7,7 +7,7 @@ graph TD
 
     subgraph topology["internal/topology/"]
         topoload["load.go — Load(path) config/topology.yaml\nvalidate: unique names, routes reference\nonly declared targets"]
-        resolve["resolve.go — ResolveTargets(appEnv, os.Getenv)\nreads each target's tokenEnv"]
+        resolve["resolve.go — ResolveTargets(appEnv, timeout)\nchecks target addresses outside dev"]
     end
 
     subgraph consumer["internal/consumer/"]
@@ -18,7 +18,7 @@ graph TD
 
     subgraph forwarder["internal/forwarder/"]
         fwd["forwarder.go\nForwarder — concurrent fan-out to\nnamed targets, all-or-nothing result"]
-        target["target.go\nTarget — single HTTP POST\n/internal/events + x-internal-token"]
+        target["target.go\nTarget — single HTTP POST\n/internal/events\n+ x-user-id, x-tenant-roles: iam-system"]
     end
 
     subgraph observability["internal/observability/"]

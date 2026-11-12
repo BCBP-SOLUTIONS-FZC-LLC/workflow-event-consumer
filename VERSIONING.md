@@ -6,7 +6,7 @@
 
 | Bump | When |
 | --- | --- |
-| MAJOR | A breaking change to a public contract: the topology file format, the forwarded request shape (`POST` of the unmodified envelope with `x-internal-token`), or the routing of an event type to a target |
+| MAJOR | A breaking change to a public contract: the topology file format, the forwarded request shape (`POST` of the unmodified envelope with the system caller identity headers `x-user-id` and `x-tenant-roles`), or the routing of an event type to a target |
 | MINOR | A backward-compatible capability: a new endpoint, an optional field, a new event type |
 | PATCH | A backward-compatible fix, a dependency bump, or a docs-only correction |
 

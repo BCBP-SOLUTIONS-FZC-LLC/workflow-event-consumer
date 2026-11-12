@@ -68,8 +68,6 @@ services:
       AWS_ACCESS_KEY_ID: test
       AWS_SECRET_ACCESS_KEY: test
       TOPOLOGY_CONFIG_PATH: /config/topology.local.yaml
-      EXECUTION_SERVICE_TOKEN: dev-token
-      DEFINITION_SERVICE_TOKEN: dev-token
     volumes:
       - ./config/topology.local.yaml:/config/topology.local.yaml:ro
     ports:

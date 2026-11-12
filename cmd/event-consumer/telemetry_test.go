@@ -32,7 +32,7 @@ func TestStandard_LibrariesShareRegistryCollectors(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(shutdown)
 
-	observability.ForwardTotal.WithLabelValues("membership", "execution", "ok").Inc()
+	observability.ForwardTotal.WithLabelValues("membership", "execution", "ok", "2xx").Inc()
 	observability.ForwardDurationSeconds.WithLabelValues("membership", "execution").Observe(0.1)
 	observability.HandlerDurationSeconds.WithLabelValues("membership", "ok").Observe(0.1)
 

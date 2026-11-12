@@ -35,8 +35,8 @@ func must[C any](c C, err error) C {
 func registerServiceMetrics() {
 	ForwardTotal = must(gincommon.NewCounterVec(nil,
 		"workflow_events_consumer_forward_total",
-		"Count of per-target HTTP forward attempts, by queue, target, and result.",
-		"queue", "target", "result"))
+		"Count of per-target HTTP forward attempts, by queue, target, result and status class (2xx, 3xx, 4xx, 5xx, transport for no answer, none for a skipped target).",
+		"queue", "target", "result", "status_class"))
 	ForwardDurationSeconds = must(gincommon.NewHistogramVec(nil,
 		"workflow_events_consumer_forward_duration_seconds",
 		"Per-target HTTP forward latency, by queue and target.",

@@ -44,6 +44,6 @@ The registry defines no `workflow_*` metrics yet, so none are emitted.
 | Metric | Type | Labels | Meaning |
 |---|---|---|---|
 | `workflow_events_consumer_forward_duration_seconds` | histogram | `queue`, `target` | Per-target HTTP forward latency, by queue and target. |
-| `workflow_events_consumer_forward_total` | counter | `queue`, `result`, `target` | Count of per-target HTTP forward attempts, by queue, target, and result. |
+| `workflow_events_consumer_forward_total` | counter | `queue`, `result`, `status_class`, `target` | Count of per-target HTTP forward attempts, by queue, target, result and status class (2xx, 3xx, 4xx, 5xx, transport for no answer, none for a skipped target). |
 | `workflow_events_consumer_handler_duration_seconds` | histogram | `queue`, `result` | End-to-end per-message handler latency, by queue and result. |
 
