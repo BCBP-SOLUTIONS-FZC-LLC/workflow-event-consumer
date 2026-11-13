@@ -12,6 +12,7 @@ TRIVY_VERSION       := 0.71.2
 KUBECONFORM_VERSION := 0.8.0
 ACTIONLINT_VERSION  := v1.7.12
 GOARCHLINT_VERSION  := v1.15.0
+OASDIFF_VERSION     := v1.32.1
 
 TESTCONTAINERS_LOCALSTACK_IMAGE := localstack/localstack:3
 
@@ -27,6 +28,7 @@ HADOLINT    := $(TOOLS_DIR)/hadolint
 TRIVY       := $(TOOLS_DIR)/trivy
 KUBECONFORM := $(TOOLS_DIR)/kubeconform
 ACTIONLINT  := $(TOOLS_DIR)/actionlint
+OASDIFF     := $(TOOLS_DIR)/oasdiff
 HELM        ?= helm
 
 BUILD_VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
@@ -63,6 +65,7 @@ tools:
 		| sh -s -- -b $(PWD)/$(TOOLS_DIR) $(GOLANGCI_VERSION)
 	GOBIN=$(PWD)/$(TOOLS_DIR) go install golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION)
 	GOBIN=$(PWD)/$(TOOLS_DIR) go install github.com/fe3dback/go-arch-lint@$(GOARCHLINT_VERSION)
+	GOBIN=$(PWD)/$(TOOLS_DIR) go install github.com/oasdiff/oasdiff@$(OASDIFF_VERSION)
 	@OS=$$(uname -s); ARCH=$$(uname -m); \
 	if [ "$$OS" = "Darwin" ]; then \
 	    if command -v brew >/dev/null 2>&1; then \
@@ -134,7 +137,9 @@ merge-coverage:
 	@python3 scripts/merge_coverage.py $(COVERAGE_DIR)/unit.out $(COVERAGE_DIR)/integration.out > $(COVER_PROFILE)
 
 ## test-ci: Run unit + integration suites and merge coverage
-test-ci: test test-integration merge-coverage
+test-ci:
+	@$(MAKE) -j2 $(if $(filter 3.%,$(MAKE_VERSION)),,--output-sync=target) test test-integration
+	@$(MAKE) merge-coverage
 	@go tool cover -func=$(COVER_PROFILE) | awk '/^total:/{print "total:", $$NF}'
 
 ## cover: Print total coverage from the last test-ci run
@@ -205,11 +210,11 @@ lint-fix:
 
 ## contract-check: Fail if a copied contract in api/contracts differs from its source; the source ref is the same-named branch of the source repo if it exists, else main (CONTRACT_SRC_REF overrides, CONTRACT_SRC_DIR=<checkout> CONTRACT_SRC_REPO=<owner/repo> reads one source locally)
 contract-check:
-	@scripts/contract-check.sh
+	@OASDIFF=$(OASDIFF) scripts/contract-check.sh
 
 ## contract-check-test: Test the contract-check script against throwaway repositories
 contract-check-test:
-	@scripts/contract-check_test.sh
+	@OASDIFF=$(OASDIFF) scripts/contract-check_test.sh
 
 ## metrics-lint: Observability standard: collector naming, metricslint on a real scrape, alert and doc references, inventory drift
 metrics-lint:

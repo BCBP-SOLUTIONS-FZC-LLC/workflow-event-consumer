@@ -31,7 +31,7 @@ var specs = map[string]string{
 var permanentStatuses = []int{http.StatusBadRequest, http.StatusRequestEntityTooLarge, http.StatusUnprocessableEntity}
 
 var retriedStatuses = []int{
-	http.StatusUnauthorized, http.StatusForbidden, http.StatusNotFound, http.StatusInternalServerError,
+	http.StatusUnauthorized, http.StatusForbidden, http.StatusNotFound, http.StatusMethodNotAllowed, http.StatusInternalServerError,
 	http.StatusBadGateway, http.StatusServiceUnavailable, http.StatusUnsupportedMediaType,
 }
 
