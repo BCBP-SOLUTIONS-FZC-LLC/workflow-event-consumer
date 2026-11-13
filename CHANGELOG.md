@@ -10,6 +10,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- Contract copies: a copy in `api/contracts/` that differs from its source no longer fails `make contract-check` unless the source has a breaking change (oasdiff) on a route this service calls; the routes are a fifth column in `api/contracts/SOURCES`. The copy of the Definition Service's internal spec is refreshed from its corrected version, and the contract test treats a `405` from a target as retried, as the forwarder already does.
+- CI: a change that touches only documentation (Markdown, Mermaid, `.claude/`, `docs/` except `docs/swagger/`, `LICENSE`) runs the CI gate and reports the required checks as skipped, not pending; the workflow no longer uses `paths-ignore`. The `.tools` directory is cached by the Makefile hash in the quality job, and `make test-ci` runs the unit and integration suites in parallel. No job or check name changes.
 - Contract copies: `make contract-check` no longer reads a branch name from `api/contracts/SOURCES` (its branch column is gone). It compares each copy with the source repository's branch named like the branch under test when that branch exists, and with `main` otherwise; `CONTRACT_SRC_REF` overrides it. `make contract-check-test` tests the script and runs in `make check`.
 - Docs only: the in-repo LLD and the copies of the Definition and Execution internal specs match the design repository (the contract copies now name the `docs/review-sync` branches). No code changed.
 - Docs only: the in-repo LLD is brought to 1.14 (the ServiceAccount is always `workflow-events-consumer`) and the copy of the Execution internal spec matches the design repository. No code changed.
