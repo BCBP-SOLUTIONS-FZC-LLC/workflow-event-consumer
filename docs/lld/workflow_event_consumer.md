@@ -9,8 +9,8 @@
 | Document Type | Low-Level Design (LLD) |
 | Service | Workflow Events Consumer (`workflow-events-consumer`, repository `workflow-event-consumer`) |
 | Subsystem | Workflow Engine — inbound event delivery |
-| Version | 1.14 |
-| Date | 2026-11-11 |
+| Version | 1.15 |
+| Date | 2026-11-22 |
 | Status | Approved |
 | Audience | Workflow Engine team, IAM, platform/infra |
 | Owner database | None (stateless) |
@@ -34,6 +34,7 @@
 | 1.12 | 2026-11-11 | **The consumer forwards with the system caller identity and no per-target token** (§4; §5; §6; Appendix A). Each forwarded request carries `x-user-id` and `x-tenant-roles` set to `iam-system`, and the targets admit it by mesh identity. The target token variables no longer exist. |
 | 1.13 | 2026-11-11 | **The forward counter carries a status class, a refused identity is logged at Error and the chart names are fixed** (§4; §7; §8). `workflow_events_consumer_forward_total` has a `status_class` label (`2xx`, `3xx`, `4xx`, `5xx`, `transport`, `none`). A `401` or `403` from a target is logged at Error with the queue, the target, the status and the event type. The chart sets `fullnameOverride: workflow-events-consumer`, so the ServiceAccount matches the callers' authorization policies whatever the release is called. |
 | 1.14 | 2026-11-11 | **The ServiceAccount is always `workflow-events-consumer`** (§8). The pods run as the chart's fixed name in every case, so the authorization policies of the Definition Service, the Execution Service and the Stream Gateway admit them. A different `serviceAccount.name` fails the render. |
+| 1.15 | 2026-11-22 | **The LLM Service has no queue on the workflow event topic** (§1; §3.4; Appendix B). The Execution Service's events reach the audit, notification, Tender and dashboard consumers only, and the Tender Service is the one later consumer that joins. |
 
 ---
 
@@ -59,7 +60,7 @@ The Workflow Events Consumer receives SQS messages from the queues the Workflow 
 
 The consumer has no database and no inbox. Each target deduplicates redelivered events itself. It publishes no events and keeps no outbox.
 
-The inventory covers the events IAM publishes that a Workflow service acts on and the Execution Service's lifecycle events that the Stream Gateway and the Execution Service consume. The Tender Service and the LLM subsystem join this consumer in later revisions: Tender's own events, and any LLM event that reaches Tender, add queues, targets and routes to the topology file without a change to the consumer.
+The inventory covers the events IAM publishes that a Workflow service acts on and the Execution Service's lifecycle events that the Stream Gateway and the Execution Service consume. The Tender Service joins this consumer in a later revision: Tender's own events add queues, targets and routes to the topology file without a change to the consumer.
 
 ---
 
@@ -149,7 +150,7 @@ The Definition Service and the Stream Gateway receive every event on the base ev
 
 IAM publishes `TenantRoleGranted`, `TenantRoleRevoked`, `MFAReset`, `TenantSeatOverageStarted`, `TenantSeatOverageResolved`, `UserProvisioned`, `UserUpdated` and the tenant lifecycle events on other topics (`iam-tenant-events` and the billing topic) for the Audit, AuthZ, Notification, Realm, Billing and Delegation consumers. None is delivered to a Workflow queue.
 
-The Execution Service publishes 18 event types to `wf-workflow-events` for the audit, notification, Tender, LLM and dashboard consumers. The dashboard queue's filter delivers 16 of them (§3.2). `WorkflowInstanceStarted` and `WorkflowInstanceForceRouted` are excluded by the filter and carry an empty route, so a widened filter drops them instead of broadcasting them.
+The Execution Service publishes 18 event types to `wf-workflow-events` for the audit, notification, Tender and dashboard consumers. The dashboard queue's filter delivers 16 of them (§3.2). `WorkflowInstanceStarted` and `WorkflowInstanceForceRouted` are excluded by the filter and carry an empty route, so a widened filter drops them instead of broadcasting them.
 
 ---
 
@@ -242,7 +243,7 @@ Unit tests cover routing, failure classification, the handler's dead-letter deci
 | 3 | The dead-letter queue name `wf-workflow-dash-q-dlq` follows the `<queue>-dlq` convention and is unconfirmed. The dashboard queue's filter policy is infrastructure provisioning (Stream Gateway LLD Appendix B). | Workflow infrastructure |
 | 4 | ~~The Workflow HLD §9.1 and the Execution Service LLD §6.2 state that no subscription filter policy exists, and the Execution Service AsyncAPI lists `MembershipRevoked` under the user topic.~~ RESOLVED (rev 1.1 — the HLD §9.1, the Execution LLD rev 1.76 and the Execution AsyncAPI follow IAM's per-queue filters, the delegation topic and the membership topic). | Workflow documents |
 | 5 | Pod autoscaling is CPU and memory based and off by default; scaling on queue depth is an infrastructure option. No admission policy enforces the Cosign signature and the chart deploys by tag. | Workflow infrastructure |
-| 6 | The Tender Service and the LLM subsystem join the consumer in later revisions, with the Tender and notification topics named in the Stream Gateway LLD §1. | Tender, LLM |
+| 6 | The Tender Service joins the consumer in a later revision, with the Tender and notification topics named in the Stream Gateway LLD §1. | Tender |
 | ~~7~~ | ~~The `platform-events` maintainers are asked to confirm the handler-side dead-letter pattern and its metric and permission semantics.~~ RESOLVED (rev 1.7): `SendToDLQ` from the handler with the handler's context, then nil, is the supported route; a dead-letter counts once in the dead-letter series by reason; the threshold must stay below the redrive count only for the library's own forwarding; the publisher needs no queue permission. The consumer runs platform-events v2.2.1, which keeps a message whose dead-letter send failed. | platform-events |
 | 8 | GitHub Actions are pinned by tag in every Workflow service; pinning by commit SHA is one change across the services. | Workflow engineering |
 | ~~9~~ | ~~The category paths of §3.3 are tested against the Execution Service's router in its own repository; this repository has no cross-repository contract test.~~ Closed 2026-10-13: the contract tests of §9 hold the forwarded paths and the declared statuses to both services' specs. | Workflow engineering |
