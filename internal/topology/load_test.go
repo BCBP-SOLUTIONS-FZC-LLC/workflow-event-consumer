@@ -66,6 +66,23 @@ func TestLoad_RefusesAnUnknownOrMisspeltKey(t *testing.T) {
 	}
 }
 
+func TestLoad_AnEmptyFileSaysItIsEmpty(t *testing.T) {
+	for name, content := range map[string]string{"empty": "", "comment only": "# nothing here\n"} {
+		t.Run(name, func(t *testing.T) {
+			_, err := Load(writeFile(t, content))
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "is empty")
+		})
+	}
+}
+
+func TestLoad_RefusesASecondDocument(t *testing.T) {
+	_, err := Load(writeFile(t, "version: 1\ntargets: [{name: t, addr: http://t:8080}]\nqueues: [{name: q, url: u}]\n---\nroutes:\n  Evt: [t]\n"))
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "one YAML document")
+}
+
 func TestLoad_RefusesAnyVersionOtherThanOne(t *testing.T) {
 	for name, header := range map[string]string{"missing": "", "zero": "version: 0\n", "later": "version: 2\n"} {
 		t.Run(name, func(t *testing.T) {

@@ -24,8 +24,15 @@ func Load(path string) (Config, error) {
 	var cfg Config
 	dec := yaml.NewDecoder(bytes.NewReader(raw))
 	dec.KnownFields(true)
-	if err := dec.Decode(&cfg); err != nil && !errors.Is(err, io.EOF) {
+	if err := dec.Decode(&cfg); err != nil {
+		if errors.Is(err, io.EOF) {
+			return Config{}, fmt.Errorf("topology: %s is empty", path)
+		}
 		return Config{}, fmt.Errorf("topology: parsing %s: %w", path, err)
+	}
+	var extra yaml.Node
+	if err := dec.Decode(&extra); !errors.Is(err, io.EOF) {
+		return Config{}, fmt.Errorf("topology: %s must hold one YAML document", path)
 	}
 
 	if err := cfg.validate(); err != nil {

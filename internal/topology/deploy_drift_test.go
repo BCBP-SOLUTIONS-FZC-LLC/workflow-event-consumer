@@ -21,13 +21,18 @@ func TestChartTopologyMatchesTheExample(t *testing.T) {
 	raw, err := os.ReadFile("../../deploy/helm/values.yaml")
 	require.NoError(t, err)
 	var values struct {
-		Topology Config `yaml:"topology"`
+		Topology yaml.Node `yaml:"topology"`
 	}
 	require.NoError(t, yaml.Unmarshal(raw, &values))
+	rendered, err := yaml.Marshal(&values.Topology)
+	require.NoError(t, err)
+	chart, err := Load(writeFile(t, string(rendered)))
+	require.NoError(t, err, "the chart's topology loads under the same rules as the service: version 1, known keys only")
 
-	assert.Equal(t, example.Targets, values.Topology.Targets, "chart targets: name, addr and pathPrefix")
-	assert.Equal(t, queueNames(example), queueNames(values.Topology), "chart queues")
-	assert.Equal(t, example.Routes, values.Topology.Routes, "chart routes")
+	assert.Equal(t, example.Version, chart.Version, "chart version")
+	assert.Equal(t, example.Targets, chart.Targets, "chart targets: name, addr and pathPrefix")
+	assert.Equal(t, queueNames(example), queueNames(chart), "chart queues")
+	assert.Equal(t, example.Routes, chart.Routes, "chart routes")
 }
 
 func TestIAMPolicyCoversEveryQueueAndItsDeadLetterQueue(t *testing.T) {
