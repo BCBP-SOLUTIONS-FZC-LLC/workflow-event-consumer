@@ -1,8 +1,9 @@
 # ci-gate: a draft PR, a documentation-only change or a PR labeled "skip-ci"
 # skips the expensive jobs below, and every check still reports (skipped counts
-# as passed), so no required check is ever left waiting. It never applies on
-# push (a merge to main) or a manual run, since github.event.pull_request.* only
-# exists on pull_request events.
+# as passed), so no required check is ever left waiting. Draft and skip-ci exist
+# only on pull_request events; the documentation-only rule also applies to a push
+# to main (it compares the pushed commits). A manual run has no base to compare,
+# so it always runs everything.
 name: CI
 
 "on":
