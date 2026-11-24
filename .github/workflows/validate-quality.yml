@@ -3,8 +3,8 @@ name: Validate / Quality
 "on":
   workflow_call:
     inputs:
-      docs_only:
-        description: 'True when only documentation changed; every job then reports skipped'
+      skip:
+        description: 'True for a draft, a documentation-only change or a PR with the skip-ci label; every job then reports skipped, so the required checks pass instead of waiting'
         type: boolean
         required: false
         default: false
@@ -21,7 +21,7 @@ env:
 jobs:
   quality:
     name: quality
-    if: ${{ !inputs.docs_only }}
+    if: ${{ !inputs.skip }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
