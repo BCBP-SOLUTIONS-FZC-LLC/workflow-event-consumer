@@ -1,19 +1,27 @@
 #!/usr/bin/env bash
-# Fails unless the given image exits non-zero when run with no environment set
-# (APP_ENV and the AWS settings are required, so the configuration load fails
-# fast). Usage:
+# Fails unless the given image, run with no environment set, exits with code 1
+# and reports a configuration error (APP_ENV is required, so the configuration
+# load fails fast). Any other exit code, such as 125-127 for a missing image or
+# entrypoint, or a crash, fails the check, as does a run that outlives the
+# timeout. Usage:
 #   docker-negative-path-check.sh <image:tag>
 set -euo pipefail
 
 image="$1"
 
 set +e
-docker run --rm "$image"
+output=$(timeout 60 docker run --rm "$image" 2>&1)
 exit_code=$?
 set -e
 
-if [ "$exit_code" -eq 0 ]; then
-  echo "expected a non-zero exit with no environment set (APP_ENV required), got 0"
+echo "$output"
+
+if [ "$exit_code" -ne 1 ]; then
+  echo "expected exit code 1 with no environment set (APP_ENV required), got $exit_code"
   exit 1
 fi
-echo "container correctly exited $exit_code on missing required configuration"
+if ! grep -q "config error" <<<"$output"; then
+  echo "exit code 1, but the output does not report a configuration error"
+  exit 1
+fi
+echo "container correctly exited 1 on missing required configuration"

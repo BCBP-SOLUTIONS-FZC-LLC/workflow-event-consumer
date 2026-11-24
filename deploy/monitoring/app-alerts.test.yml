@@ -144,9 +144,9 @@ tests:
 - name: receive errors from SQS alert after five minutes
   interval: 1m
   input_series:
-  - series: platform_dependency_request_seconds_count{dependency="sqs", operation="receive_message", outcome="error"}
+  - series: platform_dependency_request_seconds_count{job="workflow-events-consumer", dependency="sqs", operation="receive_message", outcome="error"}
     values: 0+1x30
-  - series: platform_dependency_request_seconds_count{dependency="sqs", operation="delete_message", outcome="error"}
+  - series: platform_dependency_request_seconds_count{job="workflow-events-consumer", dependency="sqs", operation="delete_message", outcome="error"}
     values: 0+1x30
   alert_rule_test:
   - eval_time: 5m
@@ -165,10 +165,12 @@ tests:
 - name: a queue above a thousand messages alerts after fifteen minutes
   interval: 1m
   input_series:
-  - series: platform_queue_depth{queue="tasks"}
+  - series: platform_queue_depth{job="workflow-events-consumer", queue="tasks"}
     values: 1500x30
-  - series: platform_queue_depth{queue="instances"}
+  - series: platform_queue_depth{job="workflow-events-consumer", queue="instances"}
     values: 900x30
+  - series: platform_queue_depth{job="workflow-other-service", queue="other"}
+    values: 5000x30
   alert_rule_test:
   - eval_time: 14m
     alertname: WorkflowEventsConsumerQueueBacklog
@@ -186,10 +188,12 @@ tests:
 - name: a non-empty dead-letter queue alerts after five minutes
   interval: 1m
   input_series:
-  - series: platform_dlq_depth{queue="tasks"}
+  - series: platform_dlq_depth{job="workflow-events-consumer", queue="tasks"}
     values: 1x30
-  - series: platform_dlq_depth{queue="instances"}
+  - series: platform_dlq_depth{job="workflow-events-consumer", queue="instances"}
     values: '0x30'
+  - series: platform_dlq_depth{job="workflow-other-service", queue="other"}
+    values: 3x30
   alert_rule_test:
   - eval_time: 4m
     alertname: WorkflowEventsConsumerDeadLetterBacklog
@@ -205,3 +209,12 @@ tests:
           The dead-letter queue behind "tasks" holds messages. This also covers messages SQS moved itself because the queue's redrive count is at or below the consumer's receive threshold. See docs/runbook.md.
         runbook: docs/runbook.md#replaying-a-dead-lettered-message
         summary: workflow-events-consumer dead-letter queue of tasks is not empty
+- name: receive errors of another service do not alert
+  interval: 1m
+  input_series:
+  - series: platform_dependency_request_seconds_count{job="workflow-other-service", dependency="sqs", operation="receive_message", outcome="error"}
+    values: 0+1x30
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: WorkflowEventsConsumerReceiveFailing
+    exp_alerts: []

@@ -88,7 +88,7 @@ func TestServe_ASignalStopsTheConsumersAndExitsCleanly(t *testing.T) {
 	flush := &flushCounter{}
 	log := &recordingLogger{}
 
-	code := serve(serveConfig(freePort(t)), log, []consumerLike{c}, signals(syscall.SIGTERM), time.Minute, flush.flush)
+	code := serve(serveConfig(0), log, []consumerLike{c}, signals(syscall.SIGTERM), time.Minute, flush.flush)
 
 	assert.Equal(t, 0, code)
 	assert.True(t, c.stopped.Load(), "the consumer is asked to stop")
@@ -101,7 +101,7 @@ func TestServe_AFailedConsumerExitsOneAfterTheSameDrain(t *testing.T) {
 	flush := &flushCounter{}
 	log := &recordingLogger{}
 
-	code := serve(serveConfig(freePort(t)), log, []consumerLike{failing}, signals(), time.Minute, flush.flush)
+	code := serve(serveConfig(0), log, []consumerLike{failing}, signals(), time.Minute, flush.flush)
 
 	assert.Equal(t, 1, code, "a stopped consumer restarts the pod")
 	assert.Equal(t, int32(1), flush.n.Load())
@@ -127,7 +127,7 @@ func TestServe_AConsumerThatNeverStopsIsWarnedAboutAndTelemetryIsStillFlushed(t 
 	flush := &flushCounter{}
 	log := &recordingLogger{}
 
-	code := serve(serveConfig(freePort(t)), log, []consumerLike{stuckConsumer{}}, signals(syscall.SIGINT), 50*time.Millisecond, flush.flush)
+	code := serve(serveConfig(0), log, []consumerLike{stuckConsumer{}}, signals(syscall.SIGINT), 50*time.Millisecond, flush.flush)
 
 	assert.Equal(t, 0, code)
 	assert.True(t, log.hasWarning("consumers still running after the grace period"))
