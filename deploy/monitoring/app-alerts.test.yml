@@ -1,0 +1,207 @@
+rule_files:
+- app-alerts.yml
+evaluation_interval: 1m
+tests:
+- name: sustained forward errors to one target alert after ten minutes
+  interval: 1m
+  input_series:
+  - series: workflow_events_consumer_forward_total{result="error", target="execution"}
+    values: 0+1x30
+  - series: workflow_events_consumer_forward_total{result="ok", target="definition"}
+    values: 0+5x30
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: WorkflowEventsConsumerForwardErrors
+    exp_alerts: []
+  - eval_time: 15m
+    alertname: WorkflowEventsConsumerForwardErrors
+    exp_alerts:
+    - exp_labels:
+        severity: warning
+        target: execution
+      exp_annotations:
+        description: |
+          Sustained forward failures to target "execution" for 10m — that downstream service is failing or unreachable; messages for its routed queue(s) will keep redelivering until it recovers or the consumer's receive threshold (MAX_RECEIVE_COUNT) dead-letters them. See docs/runbook.md.
+        runbook: docs/runbook.md#a-message-is-stuck-redelivering
+        summary: workflow-events-consumer forwarding errors to execution
+- name: a p99 handler time above five seconds alerts after ten minutes
+  interval: 1m
+  input_series:
+  - series: workflow_events_consumer_handler_duration_seconds_bucket{queue="slow", le="1"}
+    values: '0x30'
+  - series: workflow_events_consumer_handler_duration_seconds_bucket{queue="slow", le="10"}
+    values: 0+10x30
+  - series: workflow_events_consumer_handler_duration_seconds_bucket{queue="slow", le="+Inf"}
+    values: 0+10x30
+  - series: workflow_events_consumer_handler_duration_seconds_bucket{queue="fast", le="1"}
+    values: 0+10x30
+  - series: workflow_events_consumer_handler_duration_seconds_bucket{queue="fast", le="10"}
+    values: 0+10x30
+  - series: workflow_events_consumer_handler_duration_seconds_bucket{queue="fast", le="+Inf"}
+    values: 0+10x30
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: WorkflowEventsConsumerHandlerLatencyHigh
+    exp_alerts: []
+  - eval_time: 15m
+    alertname: WorkflowEventsConsumerHandlerLatencyHigh
+    exp_alerts:
+    - exp_labels:
+        queue: slow
+        severity: warning
+      exp_annotations:
+        description: |
+          p99 handler duration for queue "slow" has exceeded 5s for 10m — either a downstream target is slow, or queue depth is outpacing CONSUMER_CONCURRENCY.
+        runbook: docs/runbook.md#a-message-is-stuck-redelivering
+        summary: workflow-events-consumer p99 handler latency high on queue slow
+- name: a failed scrape alerts after five minutes
+  interval: 1m
+  input_series:
+  - series: up{job="workflow-events-consumer"}
+    values: '0x30'
+  alert_rule_test:
+  - eval_time: 4m
+    alertname: WorkflowEventsConsumerDown
+    exp_alerts: []
+  - eval_time: 6m
+    alertname: WorkflowEventsConsumerDown
+    exp_alerts:
+    - exp_labels:
+        job: workflow-events-consumer
+        severity: critical
+      exp_annotations:
+        description: No successful /metrics scrape for 5m — the bridge may not be consuming any queue.
+        runbook: docs/runbook.md#the-pod-is-not-ready-and-nothing-is-consumed
+        summary: workflow-events-consumer is down
+- name: messages failing on a queue alert after ten minutes
+  interval: 1m
+  input_series:
+  - series: platform_messages_failed_total{job="workflow-events-consumer", queue="tasks", reason="handler_error"}
+    values: 0+1x30
+  alert_rule_test:
+  - eval_time: 10m
+    alertname: WorkflowEventsConsumerMessagesFailing
+    exp_alerts: []
+  - eval_time: 15m
+    alertname: WorkflowEventsConsumerMessagesFailing
+    exp_alerts:
+    - exp_labels:
+        queue: tasks
+        reason: handler_error
+        severity: warning
+      exp_annotations:
+        description: |
+          Messages on queue "tasks" have failed processing for 10m (reason "handler_error"). Failed messages are redelivered with backoff until the consumer's receive threshold (MAX_RECEIVE_COUNT) moves them to the dead-letter queue.
+        runbook: docs/runbook.md#a-message-is-stuck-redelivering
+        summary: workflow-events-consumer messages failing on queue tasks
+- name: a consumed message moved to the dead-letter queue alerts at once and clears
+  interval: 1m
+  input_series:
+  - series: platform_dlq_messages_total{job="workflow-events-consumer", operation="consume", event_type="task.created", reason="max_receives"}
+    values: 0 0 0 1x27
+  - series: platform_dlq_messages_total{job="workflow-events-consumer", operation="publish", event_type="task.created", reason="publish_failed"}
+    values: 0+1x30
+  alert_rule_test:
+  - eval_time: 2m
+    alertname: WorkflowEventsConsumerDeadLettered
+    exp_alerts: []
+  - eval_time: 4m
+    alertname: WorkflowEventsConsumerDeadLettered
+    exp_alerts:
+    - exp_labels:
+        event_type: task.created
+        reason: max_receives
+        severity: page
+      exp_annotations:
+        description: A message exhausted its deliveries or was malformed and moved to the dead-letter queue. See docs/runbook.md.
+        runbook: docs/runbook.md#replaying-a-dead-lettered-message
+        summary: workflow-events-consumer dead-lettered task.created (max_receives)
+  - eval_time: 10m
+    alertname: WorkflowEventsConsumerDeadLettered
+    exp_alerts: []
+- name: a recovered handler panic alerts at once and clears
+  interval: 1m
+  input_series:
+  - series: platform_http_panics_total{job="workflow-events-consumer"}
+    values: 0 0 1x28
+  alert_rule_test:
+  - eval_time: 1m
+    alertname: WorkflowEventsConsumerHTTPPanic
+    exp_alerts: []
+  - eval_time: 3m
+    alertname: WorkflowEventsConsumerHTTPPanic
+    exp_alerts:
+    - exp_labels:
+        job: workflow-events-consumer
+        severity: critical
+      exp_annotations:
+        description: The health and metrics server recovered a panic. Check the logs for the stack trace.
+        runbook: docs/runbook.md#alerting-signals
+        summary: A workflow-events-consumer HTTP handler panicked
+  - eval_time: 10m
+    alertname: WorkflowEventsConsumerHTTPPanic
+    exp_alerts: []
+- name: receive errors from SQS alert after five minutes
+  interval: 1m
+  input_series:
+  - series: platform_dependency_request_seconds_count{dependency="sqs", operation="receive_message", outcome="error"}
+    values: 0+1x30
+  - series: platform_dependency_request_seconds_count{dependency="sqs", operation="delete_message", outcome="error"}
+    values: 0+1x30
+  alert_rule_test:
+  - eval_time: 5m
+    alertname: WorkflowEventsConsumerReceiveFailing
+    exp_alerts: []
+  - eval_time: 7m
+    alertname: WorkflowEventsConsumerReceiveFailing
+    exp_alerts:
+    - exp_labels:
+        severity: critical
+      exp_annotations:
+        description: |
+          ReceiveMessage has been failing for 5m, so no queue is being consumed. Check the role's SQS permissions, the queue URLs and AWS_REGION. The pod also fails its health check after the receive stall window.
+        runbook: docs/runbook.md#the-pod-is-not-ready-and-nothing-is-consumed
+        summary: workflow-events-consumer cannot receive from SQS
+- name: a queue above a thousand messages alerts after fifteen minutes
+  interval: 1m
+  input_series:
+  - series: platform_queue_depth{queue="tasks"}
+    values: 1500x30
+  - series: platform_queue_depth{queue="instances"}
+    values: 900x30
+  alert_rule_test:
+  - eval_time: 14m
+    alertname: WorkflowEventsConsumerQueueBacklog
+    exp_alerts: []
+  - eval_time: 16m
+    alertname: WorkflowEventsConsumerQueueBacklog
+    exp_alerts:
+    - exp_labels:
+        queue: tasks
+        severity: warning
+      exp_annotations:
+        description: Queue "tasks" has held more than 1000 messages for 15m. Check target health and CONSUMER_CONCURRENCY.
+        runbook: docs/runbook.md#a-message-is-stuck-redelivering
+        summary: workflow-events-consumer backlog on queue tasks
+- name: a non-empty dead-letter queue alerts after five minutes
+  interval: 1m
+  input_series:
+  - series: platform_dlq_depth{queue="tasks"}
+    values: 1x30
+  - series: platform_dlq_depth{queue="instances"}
+    values: '0x30'
+  alert_rule_test:
+  - eval_time: 4m
+    alertname: WorkflowEventsConsumerDeadLetterBacklog
+    exp_alerts: []
+  - eval_time: 6m
+    alertname: WorkflowEventsConsumerDeadLetterBacklog
+    exp_alerts:
+    - exp_labels:
+        queue: tasks
+        severity: page
+      exp_annotations:
+        description: |
+          The dead-letter queue behind "tasks" holds messages. This also covers messages SQS moved itself because the queue's redrive count is at or below the consumer's receive threshold. See docs/runbook.md.
+        runbook: docs/runbook.md#replaying-a-dead-lettered-message
+        summary: workflow-events-consumer dead-letter queue of tasks is not empty

@@ -15,9 +15,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/BCBP-SOLUTIONS-FZC-LLC/platform-events/v2/pkg/events"
 	"github.com/BCBP-SOLUTIONS-FZC-LLC/platform-gincommon/pkg/gincommon"
 
 	"github.com/BCBP-SOLUTIONS-FZC-LLC/workflow-events-consumer/internal/config"
+	"github.com/BCBP-SOLUTIONS-FZC-LLC/workflow-events-consumer/internal/consumer"
 	"github.com/BCBP-SOLUTIONS-FZC-LLC/workflow-events-consumer/internal/observability"
 )
 
@@ -140,7 +142,7 @@ func TestRun_ABadConfigurationExitsOneAndSaysSo(t *testing.T) {
 	t.Setenv("APP_ENV", "")
 	var stderr bytes.Buffer
 
-	code := run(&stderr, signals(), noTelemetry(&flushCounter{}))
+	code := run(&stderr, signals(), noTelemetry(&flushCounter{}), buildDeps)
 
 	assert.Equal(t, 1, code)
 	assert.Contains(t, stderr.String(), "config error")
@@ -163,7 +165,7 @@ func TestRun_ATelemetryFailureExitsOne(t *testing.T) {
 	validEnv(t, "../../config/topology.example.yaml")
 	failing := func(gincommon.Config, observability.Logger) (func(), error) { return nil, errors.New("tracing down") }
 
-	code := run(&bytes.Buffer{}, signals(), failing)
+	code := run(&bytes.Buffer{}, signals(), failing, buildDeps)
 
 	assert.Equal(t, 1, code)
 }
@@ -172,8 +174,23 @@ func TestRun_AMissingTopologyFlushesTelemetryAndExitsOne(t *testing.T) {
 	validEnv(t, "../../config/does-not-exist.yaml")
 	flush := &flushCounter{}
 
-	code := run(&bytes.Buffer{}, signals(), noTelemetry(flush))
+	code := run(&bytes.Buffer{}, signals(), noTelemetry(flush), buildDeps)
 
 	assert.Equal(t, 1, code)
 	assert.Equal(t, int32(1), flush.n.Load(), "telemetry is flushed before a start-up failure exits")
+}
+
+func TestRun_AValidStartServesTheBuiltConsumersUntilASignal(t *testing.T) {
+	validEnv(t, "../../config/topology.example.yaml")
+	flush := &flushCounter{}
+	c := newFakeConsumer(nil)
+	build := func(*config.Config, consumer.Logger) (*deps, error) {
+		return &deps{consumers: []events.Consumer{c}}, nil
+	}
+
+	code := run(&bytes.Buffer{}, signals(syscall.SIGTERM), noTelemetry(flush), build)
+
+	assert.Equal(t, 0, code)
+	assert.True(t, c.stopped.Load(), "the built consumer is served and then stopped")
+	assert.Equal(t, int32(1), flush.n.Load(), "telemetry is flushed once on the way out")
 }

@@ -121,6 +121,9 @@ jobs:
           cache-from: type=gha,scope=event-consumer
           cache-to: type=gha,mode=max,scope=event-consumer
 
+      - name: Negative-path check — exits non-zero on missing required configuration
+        run: .github/scripts/docker-negative-path-check.sh "${{ env.IMAGE_BASE }}:${{ github.sha }}"
+
   trivy-cve-scan:
     name: Trivy CVE scan
     needs: [build-image-cache]
@@ -231,7 +234,7 @@ jobs:
         env:
           JOB_RESULTS: ${{ toJSON(needs) }}
           COVERAGE_PCT: ${{ steps.cov.outputs.pct }}
-          COVERAGE_MIN: '90'
+          COVERAGE_MIN: '97'
         with:
           script: |
             const prSummary = require('./.github/scripts/pr-summary.js');

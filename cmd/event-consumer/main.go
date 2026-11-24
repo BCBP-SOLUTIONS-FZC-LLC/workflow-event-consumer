@@ -32,10 +32,10 @@ type serveLogger interface {
 func main() {
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
-	os.Exit(run(os.Stderr, sigCh, observability.InitTelemetry))
+	os.Exit(run(os.Stderr, sigCh, observability.InitTelemetry, buildDeps))
 }
 
-func run(stderr io.Writer, sigCh <-chan os.Signal, startTelemetry telemetryStarter) int {
+func run(stderr io.Writer, sigCh <-chan os.Signal, startTelemetry telemetryStarter, build depsBuilder) int {
 	cfg, err := config.Load()
 	if err != nil {
 		_, _ = fmt.Fprintf(stderr, "config error: %v\n", err)
@@ -56,7 +56,7 @@ func run(stderr io.Writer, sigCh <-chan os.Signal, startTelemetry telemetryStart
 
 	wlog.Info("event-consumer starting", map[string]any{"version": version})
 
-	d, err := buildDeps(cfg, wlog)
+	d, err := build(cfg, wlog)
 	if err != nil {
 		wlog.Error("startup failed", map[string]any{"error": err.Error()})
 		shutdownTelemetry()
