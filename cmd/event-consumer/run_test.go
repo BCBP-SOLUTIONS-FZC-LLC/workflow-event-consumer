@@ -5,7 +5,6 @@ import (
 	"errors"
 	"net"
 	"os"
-	"strconv"
 	"sync"
 	"sync/atomic"
 	"syscall"
@@ -55,13 +54,16 @@ func (l *recordingLogger) hasWarning(fragment string) bool {
 	return false
 }
 
-func freePort(t *testing.T) int {
+func loopback(t *testing.T) net.Listener {
 	t.Helper()
 	l, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
-	port := l.Addr().(*net.TCPAddr).Port
-	require.NoError(t, l.Close())
-	return port
+	t.Cleanup(func() { _ = l.Close() })
+	return l
+}
+
+func listenLoopback(t *testing.T) listenFunc {
+	return func(string) (net.Listener, error) { return loopback(t), nil }
 }
 
 func serveConfig(port int) *config.Config {
@@ -88,7 +90,7 @@ func TestServe_ASignalStopsTheConsumersAndExitsCleanly(t *testing.T) {
 	flush := &flushCounter{}
 	log := &recordingLogger{}
 
-	code := serve(serveConfig(0), log, []consumerLike{c}, signals(syscall.SIGTERM), time.Minute, flush.flush)
+	code := serve(serveConfig(0), log, []consumerLike{c}, loopback(t), signals(syscall.SIGTERM), time.Minute, flush.flush)
 
 	assert.Equal(t, 0, code)
 	assert.True(t, c.stopped.Load(), "the consumer is asked to stop")
@@ -101,22 +103,20 @@ func TestServe_AFailedConsumerExitsOneAfterTheSameDrain(t *testing.T) {
 	flush := &flushCounter{}
 	log := &recordingLogger{}
 
-	code := serve(serveConfig(0), log, []consumerLike{failing}, signals(), time.Minute, flush.flush)
+	code := serve(serveConfig(0), log, []consumerLike{failing}, loopback(t), signals(), time.Minute, flush.flush)
 
 	assert.Equal(t, 1, code, "a stopped consumer restarts the pod")
 	assert.Equal(t, int32(1), flush.n.Load())
 	assert.Contains(t, log.errors, "event-consumer: a consumer stopped, exiting so the pod restarts")
 }
 
-func TestServe_AHealthServerThatCannotBindExitsOne(t *testing.T) {
-	taken, err := net.Listen("tcp", ":0")
-	require.NoError(t, err)
-	t.Cleanup(func() { _ = taken.Close() })
-	port := taken.Addr().(*net.TCPAddr).Port
+func TestServe_AHealthServerThatStopsServingExitsOne(t *testing.T) {
+	closed := loopback(t)
+	require.NoError(t, closed.Close())
 	flush := &flushCounter{}
 	log := &recordingLogger{}
 
-	code := serve(serveConfig(port), log, []consumerLike{newFakeConsumer(nil)}, signals(), time.Minute, flush.flush)
+	code := serve(serveConfig(0), log, []consumerLike{newFakeConsumer(nil)}, closed, signals(), time.Minute, flush.flush)
 
 	assert.Equal(t, 1, code)
 	assert.Contains(t, log.errors, "health server exited")
@@ -127,7 +127,7 @@ func TestServe_AConsumerThatNeverStopsIsWarnedAboutAndTelemetryIsStillFlushed(t 
 	flush := &flushCounter{}
 	log := &recordingLogger{}
 
-	code := serve(serveConfig(0), log, []consumerLike{stuckConsumer{}}, signals(syscall.SIGINT), 50*time.Millisecond, flush.flush)
+	code := serve(serveConfig(0), log, []consumerLike{stuckConsumer{}}, loopback(t), signals(syscall.SIGINT), 50*time.Millisecond, flush.flush)
 
 	assert.Equal(t, 0, code)
 	assert.True(t, log.hasWarning("consumers still running after the grace period"))
@@ -142,7 +142,7 @@ func TestRun_ABadConfigurationExitsOneAndSaysSo(t *testing.T) {
 	t.Setenv("APP_ENV", "")
 	var stderr bytes.Buffer
 
-	code := run(&stderr, signals(), noTelemetry(&flushCounter{}), buildDeps)
+	code := run(&stderr, signals(), noTelemetry(&flushCounter{}), buildDeps, listenLoopback(t))
 
 	assert.Equal(t, 1, code)
 	assert.Contains(t, stderr.String(), "config error")
@@ -157,7 +157,7 @@ func validEnv(t *testing.T, topologyPath string) {
 	t.Setenv("AWS_ENDPOINT_URL", "http://127.0.0.1:1")
 	t.Setenv("AWS_ACCESS_KEY_ID", "test")
 	t.Setenv("AWS_SECRET_ACCESS_KEY", "test")
-	t.Setenv("HEALTH_PORT", strconv.Itoa(freePort(t)))
+	t.Setenv("HEALTH_PORT", "8082")
 	t.Setenv("TOPOLOGY_CONFIG_PATH", topologyPath)
 }
 
@@ -165,7 +165,7 @@ func TestRun_ATelemetryFailureExitsOne(t *testing.T) {
 	validEnv(t, "../../config/topology.example.yaml")
 	failing := func(gincommon.Config, observability.Logger) (func(), error) { return nil, errors.New("tracing down") }
 
-	code := run(&bytes.Buffer{}, signals(), failing, buildDeps)
+	code := run(&bytes.Buffer{}, signals(), failing, buildDeps, listenLoopback(t))
 
 	assert.Equal(t, 1, code)
 }
@@ -174,7 +174,7 @@ func TestRun_AMissingTopologyFlushesTelemetryAndExitsOne(t *testing.T) {
 	validEnv(t, "../../config/does-not-exist.yaml")
 	flush := &flushCounter{}
 
-	code := run(&bytes.Buffer{}, signals(), noTelemetry(flush), buildDeps)
+	code := run(&bytes.Buffer{}, signals(), noTelemetry(flush), buildDeps, listenLoopback(t))
 
 	assert.Equal(t, 1, code)
 	assert.Equal(t, int32(1), flush.n.Load(), "telemetry is flushed before a start-up failure exits")
@@ -188,9 +188,37 @@ func TestRun_AValidStartServesTheBuiltConsumersUntilASignal(t *testing.T) {
 		return &deps{consumers: []events.Consumer{c}}, nil
 	}
 
-	code := run(&bytes.Buffer{}, signals(syscall.SIGTERM), noTelemetry(flush), build)
+	code := run(&bytes.Buffer{}, signals(syscall.SIGTERM), noTelemetry(flush), build, listenLoopback(t))
 
 	assert.Equal(t, 0, code)
 	assert.True(t, c.stopped.Load(), "the built consumer is served and then stopped")
 	assert.Equal(t, int32(1), flush.n.Load(), "telemetry is flushed once on the way out")
+}
+
+func TestListenTCP_BindsOnceAndNamesTheAddressWhenTaken(t *testing.T) {
+	first, err := listenTCP("127.0.0.1:0")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = first.Close() })
+	addr := first.Addr().String()
+
+	_, err = listenTCP(addr)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), addr)
+}
+
+func TestRun_AHealthPortThatCannotBeBoundFlushesTelemetryAndExitsOne(t *testing.T) {
+	validEnv(t, "../../config/topology.example.yaml")
+	flush := &flushCounter{}
+	c := newFakeConsumer(nil)
+	build := func(*config.Config, consumer.Logger) (*deps, error) {
+		return &deps{consumers: []events.Consumer{c}}, nil
+	}
+	taken := func(string) (net.Listener, error) { return nil, errors.New("address already in use") }
+
+	code := run(&bytes.Buffer{}, signals(), noTelemetry(flush), build, taken)
+
+	assert.Equal(t, 1, code)
+	assert.False(t, c.stopped.Load(), "no consumer was started, so none is stopped")
+	assert.Equal(t, int32(1), flush.n.Load(), "telemetry is flushed before the exit")
 }

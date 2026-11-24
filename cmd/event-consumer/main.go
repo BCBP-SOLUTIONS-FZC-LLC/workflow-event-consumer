@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -24,6 +25,8 @@ var version = "dev"
 
 type telemetryStarter func(gincommon.Config, observability.Logger) (func(), error)
 
+type listenFunc func(addr string) (net.Listener, error)
+
 type serveLogger interface {
 	observability.Logger
 	superviseLogger
@@ -32,10 +35,19 @@ type serveLogger interface {
 func main() {
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
-	os.Exit(run(os.Stderr, sigCh, observability.InitTelemetry, buildDeps))
+	os.Exit(run(os.Stderr, sigCh, observability.InitTelemetry, buildDeps, listenTCP))
 }
 
-func run(stderr io.Writer, sigCh <-chan os.Signal, startTelemetry telemetryStarter, build depsBuilder) int {
+func listenTCP(addr string) (net.Listener, error) {
+	var lc net.ListenConfig
+	ln, err := lc.Listen(context.Background(), "tcp", addr)
+	if err != nil {
+		return nil, fmt.Errorf("listen on %s: %w", addr, err)
+	}
+	return ln, nil
+}
+
+func run(stderr io.Writer, sigCh <-chan os.Signal, startTelemetry telemetryStarter, build depsBuilder, listen listenFunc) int {
 	cfg, err := config.Load()
 	if err != nil {
 		_, _ = fmt.Fprintf(stderr, "config error: %v\n", err)
@@ -67,17 +79,23 @@ func run(stderr io.Writer, sigCh <-chan os.Signal, startTelemetry telemetryStart
 	for i, c := range d.consumers {
 		consumers[i] = c
 	}
-	return serve(cfg, wlog, consumers, sigCh, shutdownGrace, shutdownTelemetry)
+	ln, err := listen(fmt.Sprintf(":%d", cfg.HealthPort))
+	if err != nil {
+		wlog.Error("health server cannot listen", map[string]any{"error": err.Error()})
+		shutdownTelemetry()
+		return 1
+	}
+	return serve(cfg, wlog, consumers, ln, sigCh, shutdownGrace, shutdownTelemetry)
 }
 
-func serve(cfg *config.Config, wlog serveLogger, consumers []consumerLike, sigCh <-chan os.Signal, grace time.Duration, shutdownTelemetry func()) int {
+func serve(cfg *config.Config, wlog serveLogger, consumers []consumerLike, ln net.Listener, sigCh <-chan os.Signal, grace time.Duration, shutdownTelemetry func()) int {
 	ctx, cancel := context.WithCancel(context.Background())
 	sup := superviseConsumers(ctx, consumers, wlog)
 
 	watch := observability.NewReceiveWatch(gincommon.MetricsGatherer(), cfg.ReceiveStallWindow, time.Now)
 	healthSrv := newHealthServer(fmt.Sprintf(":%d", cfg.HealthPort), observability.GinConfig(cfg.OTELServiceName, cfg.BuildVersion, cfg.AppEnv, wlog), watch)
 	go func() {
-		if err := healthSrv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		if err := healthSrv.Serve(ln); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			wlog.Error("health server exited", map[string]any{"error": err.Error()})
 			sup.report(fmt.Errorf("health server exited: %w", err))
 		}

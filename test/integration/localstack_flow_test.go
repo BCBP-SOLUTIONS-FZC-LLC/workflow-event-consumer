@@ -98,7 +98,7 @@ func TestLocalStackFlow_RoutesToOnlyExecution(t *testing.T) {
 
 	// DelegationStarted is execution-only per config/topology.example.yaml/testRoutes —
 	// definition_service should never see it.
-	env := events.NewEnvelope("DelegationStarted", "iam", json.RawMessage(`{"delegate_id":"u-1"}`))
+	env := events.NewEnvelope("DelegationStarted", "iam", json.RawMessage(`{"delegate_user_id":"u-1"}`))
 	body, err := json.Marshal(env)
 	require.NoError(t, err)
 	ls.SendToQueue(ctx, t, "iam-membership-events", body)
