@@ -12,6 +12,8 @@ import (
 	"github.com/BCBP-SOLUTIONS-FZC-LLC/workflow-events-consumer/internal/topology"
 )
 
+type depsBuilder func(cfg *config.Config, logger consumer.Logger) (*deps, error)
+
 type deps struct {
 	consumers []events.Consumer
 }

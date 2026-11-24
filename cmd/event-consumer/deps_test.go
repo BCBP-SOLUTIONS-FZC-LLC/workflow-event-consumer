@@ -1,6 +1,8 @@
 package main
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -49,4 +51,46 @@ func TestBuildDeps_NeedsNoTargetSecretOutsideDev(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.NotEmpty(t, d.consumers, "a production topology builds with no secret in the environment")
+}
+
+func writeTopology(t *testing.T, body string) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "topology.yaml")
+	require.NoError(t, os.WriteFile(path, []byte(body), 0o600))
+	return path
+}
+
+func TestBuildDeps_RefusesATargetAddressThatIsNotSecureOutsideDev(t *testing.T) {
+	path := writeTopology(t, "version: 1\ntargets:\n  - {name: a, addr: http://plain-host}\nqueues:\n  - {name: q, url: http://q}\n")
+	cfg := depsConfig(path)
+	cfg.AppEnv = "prod"
+
+	_, err := buildDeps(cfg, nopLogger{})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "resolve targets")
+}
+
+func TestBuildDeps_NamesTheQueueWhoseConsumerCannotBeBuilt(t *testing.T) {
+	t.Setenv("AWS_ACCESS_KEY_ID", "test")
+	t.Setenv("AWS_SECRET_ACCESS_KEY", "test")
+	cfg := depsConfig("../../config/topology.example.yaml")
+	cfg.MaxReceiveCount = 0
+
+	_, err := buildDeps(cfg, nopLogger{})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "build membership consumer")
+}
+
+func TestBuildDeps_AFailureToCreateTheDeadLetterPublisherIsNamed(t *testing.T) {
+	t.Setenv("AWS_ACCESS_KEY_ID", "test")
+	t.Setenv("AWS_SECRET_ACCESS_KEY", "test")
+	cfg := depsConfig("../../config/topology.example.yaml")
+	t.Setenv("AWS_CA_BUNDLE", filepath.Join(t.TempDir(), "missing.pem"))
+
+	_, err := buildDeps(cfg, nopLogger{})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "dead-letter publisher")
 }

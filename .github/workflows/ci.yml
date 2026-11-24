@@ -1,12 +1,18 @@
-# ci-gate: lets a draft PR (or a PR labeled "skip-ci") skip the expensive
-# jobs below while iterating — never applies on push (a merge to main),
-# since github.event.pull_request.* only exists on pull_request events.
+# ci-gate: a draft PR, a documentation-only change or a PR labeled "skip-ci"
+# skips the expensive jobs below, and every check still reports (skipped counts
+# as passed), so no required check is ever left waiting. Draft and skip-ci exist
+# only on pull_request events; the documentation-only rule also applies to a push
+# to main (it compares the pushed commits). A manual run has no base to compare,
+# so it always runs everything.
 name: CI
 
 "on":
   push:
     branches: [main]
   pull_request:
+    # ready_for_review runs CI when a draft is marked ready; labeled and unlabeled
+    # re-run the gate when skip-ci is added to or taken off a PR.
+    types: [opened, synchronize, reopened, ready_for_review, labeled, unlabeled]
   workflow_dispatch:
 
 permissions:
@@ -27,8 +33,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 2
     outputs:
-      run: ${{ steps.decide.outputs.run }}
-      docs_only: ${{ steps.docs.outputs.docs_only }}
+      skip: ${{ steps.decide.outputs.skip }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -58,36 +63,42 @@ jobs:
           echo "docs_only=$docs_only" >> "$GITHUB_OUTPUT"
           echo "docs_only=$docs_only"
 
+      # skip is true for a draft, a documentation-only change or a PR with the
+      # skip-ci label. The reusable Validate workflows are still called and their
+      # jobs report skipped, because a check nested in a workflow that is never
+      # called never reports and a required check would stay pending; the other
+      # jobs report skipped through their own condition.
       - id: decide
-        run: >
-          echo "run=${{
-            github.event_name != 'pull_request' ||
-            (github.event.pull_request.draft == false &&
-             !contains(github.event.pull_request.labels.*.name, 'skip-ci'))
-          }}" >> "$GITHUB_OUTPUT"
+        env:
+          DRAFT: ${{ github.event_name == 'pull_request' && github.event.pull_request.draft }}
+          SKIP_LABEL: ${{ github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'skip-ci') }}
+          DOCS_ONLY: ${{ steps.docs.outputs.docs_only }}
+        run: |
+          skip=false
+          if [ "$DRAFT" = true ] || [ "$DOCS_ONLY" = true ] || [ "$SKIP_LABEL" = true ]; then skip=true; fi
+          echo "skip=$skip" >> "$GITHUB_OUTPUT"
+          echo "skip=$skip (draft=$DRAFT, docs_only=$DOCS_ONLY, skip-ci label=$SKIP_LABEL)"
 
   validate-quality:
     name: Validate / Quality
     needs: [ci-gate]
-    if: needs.ci-gate.outputs.run == 'true'
     uses: ./.github/workflows/validate-quality.yml
     secrets: inherit
     with:
-      docs_only: ${{ needs.ci-gate.outputs.docs_only == 'true' }}
+      skip: ${{ needs.ci-gate.outputs.skip == 'true' }}
 
   validate-test:
     name: Validate / Test
     needs: [ci-gate]
-    if: needs.ci-gate.outputs.run == 'true'
     uses: ./.github/workflows/validate-test.yml
     secrets: inherit
     with:
-      docs_only: ${{ needs.ci-gate.outputs.docs_only == 'true' }}
+      skip: ${{ needs.ci-gate.outputs.skip == 'true' }}
 
   build-image-cache:
     name: Build image (cache)
     needs: [ci-gate]
-    if: needs.ci-gate.outputs.run == 'true' && needs.ci-gate.outputs.docs_only != 'true'
+    if: needs.ci-gate.outputs.skip != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -120,6 +131,9 @@ jobs:
           secrets: go_private_token=${{ secrets.GO_PRIVATE_TOKEN }}
           cache-from: type=gha,scope=event-consumer
           cache-to: type=gha,mode=max,scope=event-consumer
+
+      - name: Negative-path check — exits non-zero on missing required configuration
+        run: .github/scripts/docker-negative-path-check.sh "${{ env.IMAGE_BASE }}:${{ github.sha }}"
 
   trivy-cve-scan:
     name: Trivy CVE scan
@@ -176,7 +190,7 @@ jobs:
   smoke-tests:
     name: Smoke tests
     needs: [ci-gate, build-image-cache]
-    if: needs.ci-gate.outputs.run == 'true' && needs.ci-gate.outputs.docs_only != 'true'
+    if: needs.ci-gate.outputs.skip != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -231,7 +245,7 @@ jobs:
         env:
           JOB_RESULTS: ${{ toJSON(needs) }}
           COVERAGE_PCT: ${{ steps.cov.outputs.pct }}
-          COVERAGE_MIN: '90'
+          COVERAGE_MIN: '97'
         with:
           script: |
             const prSummary = require('./.github/scripts/pr-summary.js');

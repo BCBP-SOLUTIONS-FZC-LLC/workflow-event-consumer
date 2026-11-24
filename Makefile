@@ -36,10 +36,16 @@ LDFLAGS       := -X main.version=$(BUILD_VERSION)
 
 COVER_PROFILE   := $(COVERAGE_DIR)/coverage.out
 COVER_HTML      := $(COVERAGE_DIR)/coverage.html
-COVER_THRESHOLD := 90
+COVER_THRESHOLD := 97
+# Per-package floors; a package not listed must meet COVER_THRESHOLD.
+# cmd/event-consumer: main, the logger-failure branch of run and the health-server shutdown error.
+# internal/observability: the platform-events error and warning branches of InitTelemetry (process-global).
+COVER_PKG_FLOORS := cmd/event-consumer:94 internal/observability:93
+PROMTOOL_IMAGE  ?= prom/prometheus:v3.15.0
+COVER_PKGS      := ./internal/...,./cmd/event-consumer
 
 .PHONY: contract-check contract-check-test metrics-lint metrics-inventory helm-lint helm-test lint-workflows pin-base-images all tools tools-integration setup install-hooks build test test-integration test-ci \
-        merge-coverage cover cover-func cover-html cover-check cover-gate \
+        merge-coverage cover cover-func cover-html cover-check cover-gate cover-gate-pkg alerts-test fuzz \
         tidy fmt-check fix check lint lint-fix arch-lint vuln \
         docker-build docker-build-mock-downstream docker-lint docker-trivy docker-check \
         clean help
@@ -114,9 +120,9 @@ dev:
 test:
 	@mkdir -p $(COVERAGE_DIR)
 	go test -race -count=1 \
-	    -coverpkg=./internal/... \
+	    -coverpkg=$(COVER_PKGS) \
 	    -coverprofile=$(COVERAGE_DIR)/unit.out -covermode=atomic \
-	    ./internal/... ./test/contract/...
+	    ./internal/... ./cmd/event-consumer/... ./test/contract/... ./test/monitoring/...
 	@go tool cover -func=$(COVERAGE_DIR)/unit.out | awk '/^total:/{print "total:", $$NF}'
 
 ## test-integration: Run the LocalStack integration test — requires Docker
@@ -127,7 +133,7 @@ test-integration:
 	AWS_EC2_METADATA_DISABLED=true \
 	TESTCONTAINERS_RYUK_DISABLED=true \
 	go test -race -count=1 -tags integration \
-	    -coverpkg=./internal/... \
+	    -coverpkg=$(COVER_PKGS) \
 	    -coverprofile=$(COVERAGE_DIR)/integration.out -covermode=atomic \
 	    ./test/integration/...
 	@go tool cover -func=$(COVERAGE_DIR)/integration.out | awk '/^total:/{print "total:", $$NF}'
@@ -166,9 +172,37 @@ cover-gate:
 	awk -v p="$$pct" -v t="$(COVER_THRESHOLD)" 'BEGIN { exit !(p+0 >= t+0) }' || \
 	  { echo "✗ coverage below threshold"; exit 1; }
 	@echo "✓ coverage ok"
+	@$(MAKE) cover-gate-pkg
 
-## cover-check: Run test-ci and gate on the global coverage threshold
+## cover-gate-pkg: Fail if a package is below its floor in COVER_PKG_FLOORS, or below COVER_THRESHOLD when not listed (run 'make test-ci' first)
+cover-gate-pkg:
+	@[ -f $(COVER_PROFILE) ] || { echo "no profile — run 'make test-ci' first"; exit 1; }
+	@awk -v module="$(MODULE)/" -v floors="$(COVER_PKG_FLOORS)" -v global="$(COVER_THRESHOLD)" ' \
+	  BEGIN { n=split(floors,pairs," "); for(i=1;i<=n;i++){split(pairs[i],kv,":"); floor[kv[1]]=kv[2]+0} } \
+	  /^mode:/ { next } \
+	  { key=$$1; stmts[key]=$$2+0; if($$3>0) hit[key]=1; p=key; sub(/:.*$$/,"",p); sub(module,"",p); sub(/\/[^\/]+$$/,"",p); pkg[key]=p } \
+	  END { \
+	    for(k in stmts){ tot[pkg[k]]+=stmts[k]; if(hit[k]) cov[pkg[k]]+=stmts[k] } \
+	    fail=0; \
+	    for(p in tot){ if(tot[p]==0) continue; pct=cov[p]*100/tot[p]; f=(p in floor)?floor[p]:global; \
+	      if(pct<f){ printf "✗  %-30s %5.1f%% (floor %d%%)\n",p,pct,f; fail=1 } else { printf "✓  %-30s %5.1f%%\n",p,pct } } \
+	    exit fail }' $(COVER_PROFILE)
+
+## cover-check: Run test-ci and gate on the global and per-package coverage floors
 cover-check: test-ci cover-gate
+
+## fuzz: Fuzz the topology loader, the target address check and the message handler, FUZZTIME each (default 1m); the seed inputs run in every `make test`
+FUZZTIME ?= 1m
+fuzz:
+	go test -run '^$$' -fuzz '^FuzzLoad_' -fuzztime $(FUZZTIME) ./internal/topology/
+	go test -run '^$$' -fuzz '^FuzzResolveTargets_' -fuzztime $(FUZZTIME) ./internal/topology/
+	go test -run '^$$' -fuzz '^FuzzMakeHandler_' -fuzztime $(FUZZTIME) ./internal/consumer/
+
+## alerts-test: Unit-test the alert rules with promtool (a local promtool, else the Prometheus image)
+alerts-test:
+	@if command -v promtool >/dev/null 2>&1; then promtool test rules deploy/monitoring/app-alerts.test.yml; \
+	else docker run --rm --entrypoint promtool -v "$(CURDIR)/deploy/monitoring:/rules:ro" -w /rules \
+		$(PROMTOOL_IMAGE) test rules app-alerts.test.yml; fi
 
 ## tidy: Run go mod tidy
 tidy:
@@ -193,6 +227,7 @@ check:
 	@$(MAKE) design-sync-check-test
 	@$(MAKE) contract-check-test
 	@$(MAKE) helm-lint
+	@$(MAKE) alerts-test
 	@$(MAKE) cover-check
 	@echo "✓ all checks passed"
 

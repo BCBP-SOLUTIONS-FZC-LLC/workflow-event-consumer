@@ -75,7 +75,7 @@ groups:
 
       - alert: WorkflowEventsConsumerReceiveFailing
         expr: |
-          sum(rate(platform_dependency_request_seconds_count{dependency="sqs", operation="receive_message", outcome="error"}[5m])) > 0
+          sum(rate(platform_dependency_request_seconds_count{job=~".*workflow-events-consumer", dependency="sqs", operation="receive_message", outcome="error"}[5m])) > 0
         for: 5m
         labels:
           severity: critical
@@ -89,7 +89,7 @@ groups:
 
       - alert: WorkflowEventsConsumerQueueBacklog
         expr: |
-          max by (queue) (platform_queue_depth) > 1000
+          max by (queue) (platform_queue_depth{job=~".*workflow-events-consumer"}) > 1000
         for: 15m
         labels:
           severity: warning
@@ -100,7 +100,7 @@ groups:
 
       - alert: WorkflowEventsConsumerDeadLetterBacklog
         expr: |
-          max by (queue) (platform_dlq_depth) > 0
+          max by (queue) (platform_dlq_depth{job=~".*workflow-events-consumer"}) > 0
         for: 5m
         labels:
           severity: page

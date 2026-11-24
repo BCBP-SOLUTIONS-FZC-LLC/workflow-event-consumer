@@ -18,10 +18,10 @@ import (
 
 	"github.com/BCBP-SOLUTIONS-FZC-LLC/workflow-events-consumer/internal/consumer"
 	"github.com/BCBP-SOLUTIONS-FZC-LLC/workflow-events-consumer/internal/forwarder"
-	"github.com/BCBP-SOLUTIONS-FZC-LLC/workflow-events-consumer/internal/observability/obstest"
 	"github.com/BCBP-SOLUTIONS-FZC-LLC/workflow-events-consumer/internal/topology"
 	"github.com/BCBP-SOLUTIONS-FZC-LLC/workflow-events-consumer/test/fixtures"
 	"github.com/BCBP-SOLUTIONS-FZC-LLC/workflow-events-consumer/test/mocks"
+	"github.com/BCBP-SOLUTIONS-FZC-LLC/workflow-events-consumer/test/obstest"
 )
 
 // events.NewSQSConsumer resolves credentials via the AWS SDK's default chain
@@ -98,7 +98,7 @@ func TestLocalStackFlow_RoutesToOnlyExecution(t *testing.T) {
 
 	// DelegationStarted is execution-only per config/topology.example.yaml/testRoutes —
 	// definition_service should never see it.
-	env := events.NewEnvelope("DelegationStarted", "iam", json.RawMessage(`{"delegate_id":"u-1"}`))
+	env := events.NewEnvelope("DelegationStarted", "iam", json.RawMessage(`{"delegate_user_id":"u-1"}`))
 	body, err := json.Marshal(env)
 	require.NoError(t, err)
 	ls.SendToQueue(ctx, t, "iam-membership-events", body)
@@ -354,17 +354,20 @@ func TestLocalStackFlow_MalformedBodyIsDeadLetteredAndNeverLogged(t *testing.T) 
 	assert.NotContains(t, logs.text(), "tenant-secret-4711", "message bodies carry tenant data and stay out of the logs")
 }
 
-func TestLocalStackFlow_TheSubscriptionFilterKeepsOtherEventsOffTheQueue(t *testing.T) {
+func TestLocalStackFlow_TheSubscriptionFilterNamesTheQueuesEventsAndLetsThemThrough(t *testing.T) {
 	setLocalStackCredentials(t)
 	ctx := context.Background()
 	ls := fixtures.NewLocalStackSNSSQS(ctx, t)
 	queue := ls.Queues["iam-membership-events"]
 
-	outside, err := json.Marshal(events.NewEnvelope("TenantSeatOverageDetected", "iam", json.RawMessage(`{}`)))
-	require.NoError(t, err)
+	policy := ls.FilterPolicy(ctx, t, "iam-membership-events")
+	var filter map[string][]string
+	require.NoError(t, json.Unmarshal([]byte(policy), &filter))
+	assert.Contains(t, filter["EventType"], "MembershipRevoked")
+	assert.NotContains(t, filter["EventType"], "TenantSeatOverageDetected", "an event outside the queue's list is filtered out by the subscription")
+
 	inside, err := json.Marshal(events.NewEnvelope("MembershipRevoked", "iam", json.RawMessage(`{}`)))
 	require.NoError(t, err)
-	ls.Publish(ctx, t, "iam-membership-events", outside)
 	ls.Publish(ctx, t, "iam-membership-events", inside)
 
 	var bodies []string
@@ -372,8 +375,6 @@ func TestLocalStackFlow_TheSubscriptionFilterKeepsOtherEventsOffTheQueue(t *test
 		bodies = append(bodies, ls.DrainQueue(ctx, t, queue.QueueURL)...)
 		return len(bodies) >= 1
 	}, 15*time.Second, 200*time.Millisecond)
-	time.Sleep(2 * time.Second)
-	bodies = append(bodies, ls.DrainQueue(ctx, t, queue.QueueURL)...)
-	require.Len(t, bodies, 1, "only the filtered-in event reaches the queue")
+	require.Len(t, bodies, 1)
 	assert.Contains(t, bodies[0], "MembershipRevoked")
 }

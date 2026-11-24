@@ -73,8 +73,8 @@ file, and none are needed: every forwarded request carries `x-user-id: iam-syste
 
 Each target admits this service by its identity, not by a token: the forwarded
 request is the event body, unmodified, with the two identity headers (`x-user-id`, `x-tenant-roles`) and the trace
-context. A `topology.yaml` that still names the retired `tokenEnv` is read and
-the field is ignored.
+context. The topology file must say `version: 1` and hold only known keys; anything
+else fails start-up.
 
 AWS SDK credentials come from its default provider chain (IRSA / instance
 role in real environments); against LocalStack, set
@@ -105,14 +105,17 @@ docker compose up
 ```sh
 make test              # unit tests, using test/mocks' mock downstreams
 make test-integration  # requires Docker; real LocalStack SNS and SQS
-make test-ci           # both suites, merged coverage
-make check             # format, lint (integration tag included), vet, import rules, the observability standard, the design-sync script's test, chart lint and the coverage gate
+make test-ci           # both suites, merged coverage over internal/ and cmd/event-consumer
+make cover-gate        # 97% overall and per package (lower floors in COVER_PKG_FLOORS), on the last test-ci profile
+make alerts-test       # promtool unit tests of deploy/monitoring/app-alerts.yml
+make fuzz              # fuzz the topology loader, the target address check and the message handler (FUZZTIME, default 1m each); their seeds run in make test
+make check             # format, lint (integration tag included), vet, import rules, the observability standard, the design-sync script's test, chart lint, the alert tests and the coverage gate
 make contract-check    # each copy in api/contracts matches its source (the source repo's same-named branch, else main) or differs only in ways that cannot break the routes this service calls (oasdiff, routes in SOURCES); needs GH_TOKEN, or CONTRACT_SRC_DIR=<checkout> with CONTRACT_SRC_REPO=<owner/repo> for one local source
 ```
 
 `make test` also runs `test/contract`: every event type the topology routes to the Definition Service or the Execution Service is forwarded through the real forwarder and held to that service's OpenAPI copy in `api/contracts/`.
 
-`test/mocks` provides a reusable mock downstream (`mocks.Downstream`) used by the unit and integration tests; `cmd/mock-downstream` is a standalone binary used only by `docker compose up`.
+`test/mocks` provides a reusable mock downstream (`mocks.Downstream`) used by the unit and integration tests; `cmd/mock-downstream` is a standalone binary used only by `docker compose up`. `test/obstest` reads metric values from the registry for tests in any package. No test waits on a sleep: each waits on the event it needs. CI also checks that the image exits non-zero when started without configuration.
 
 | Command | What it does |
 | --- | --- |
