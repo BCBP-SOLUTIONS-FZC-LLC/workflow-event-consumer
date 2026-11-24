@@ -37,6 +37,7 @@ LDFLAGS       := -X main.version=$(BUILD_VERSION)
 COVER_PROFILE   := $(COVERAGE_DIR)/coverage.out
 COVER_HTML      := $(COVERAGE_DIR)/coverage.html
 COVER_THRESHOLD := 90
+COVER_PKGS      := ./internal/...,./cmd/event-consumer
 
 .PHONY: contract-check contract-check-test metrics-lint metrics-inventory helm-lint helm-test lint-workflows pin-base-images all tools tools-integration setup install-hooks build test test-integration test-ci \
         merge-coverage cover cover-func cover-html cover-check cover-gate \
@@ -114,9 +115,9 @@ dev:
 test:
 	@mkdir -p $(COVERAGE_DIR)
 	go test -race -count=1 \
-	    -coverpkg=./internal/... \
+	    -coverpkg=$(COVER_PKGS) \
 	    -coverprofile=$(COVERAGE_DIR)/unit.out -covermode=atomic \
-	    ./internal/... ./test/contract/...
+	    ./internal/... ./cmd/event-consumer/... ./test/contract/... ./test/monitoring/...
 	@go tool cover -func=$(COVERAGE_DIR)/unit.out | awk '/^total:/{print "total:", $$NF}'
 
 ## test-integration: Run the LocalStack integration test — requires Docker
@@ -127,7 +128,7 @@ test-integration:
 	AWS_EC2_METADATA_DISABLED=true \
 	TESTCONTAINERS_RYUK_DISABLED=true \
 	go test -race -count=1 -tags integration \
-	    -coverpkg=./internal/... \
+	    -coverpkg=$(COVER_PKGS) \
 	    -coverprofile=$(COVERAGE_DIR)/integration.out -covermode=atomic \
 	    ./test/integration/...
 	@go tool cover -func=$(COVERAGE_DIR)/integration.out | awk '/^total:/{print "total:", $$NF}'

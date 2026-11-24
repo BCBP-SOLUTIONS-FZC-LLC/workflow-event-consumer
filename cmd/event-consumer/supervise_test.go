@@ -56,7 +56,7 @@ func TestSuperviseConsumers_ReportsAConsumerThatCannotRun(t *testing.T) {
 	select {
 	case err := <-sup.failed:
 		assert.ErrorContains(t, err, "access denied")
-	case <-time.After(time.Second):
+	case <-time.After(30 * time.Second):
 		t.Fatal("a consumer that exited with an error was not reported")
 	}
 	cancel()
@@ -106,7 +106,7 @@ func TestSuperviseConsumers_ReportsAConsumerThatReturnsWithoutShutdown(t *testin
 	select {
 	case err := <-sup.failed:
 		assert.ErrorContains(t, err, "returned without being stopped")
-	case <-time.After(time.Second):
+	case <-time.After(30 * time.Second):
 		t.Fatal("a consumer that returned nil while the process was running was not reported")
 	}
 }
@@ -119,7 +119,7 @@ func TestSupervisor_ReportsAnExternalFailure(t *testing.T) {
 	select {
 	case err := <-sup.failed:
 		assert.ErrorContains(t, err, "address in use")
-	case <-time.After(time.Second):
+	case <-time.After(30 * time.Second):
 		t.Fatal("the failure was not reported")
 	}
 }

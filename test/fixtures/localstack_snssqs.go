@@ -258,3 +258,20 @@ func (ls *LocalStackSNSSQS) ApproximateReceiveCount(ctx context.Context, t *test
 	fmt.Sscanf(out.Messages[0].Attributes[string(sqstypes.MessageSystemAttributeNameApproximateReceiveCount)], "%d", &n)
 	return n
 }
+
+func (ls *LocalStackSNSSQS) FilterPolicy(ctx context.Context, t *testing.T, topic string) string {
+	t.Helper()
+	topicOut, err := ls.SNSClient.CreateTopic(ctx, &sns.CreateTopicInput{Name: aws.String(topic)})
+	if err != nil {
+		t.Fatalf("FilterPolicy: CreateTopic %s: %v", topic, err)
+	}
+	subs, err := ls.SNSClient.ListSubscriptionsByTopic(ctx, &sns.ListSubscriptionsByTopicInput{TopicArn: topicOut.TopicArn})
+	if err != nil || len(subs.Subscriptions) != 1 {
+		t.Fatalf("FilterPolicy: ListSubscriptionsByTopic %s: %v (%d subscriptions)", topic, err, len(subs.Subscriptions))
+	}
+	attrs, err := ls.SNSClient.GetSubscriptionAttributes(ctx, &sns.GetSubscriptionAttributesInput{SubscriptionArn: subs.Subscriptions[0].SubscriptionArn})
+	if err != nil {
+		t.Fatalf("FilterPolicy: GetSubscriptionAttributes %s: %v", topic, err)
+	}
+	return attrs.Attributes["FilterPolicy"]
+}

@@ -82,3 +82,15 @@ func TestBuildDeps_NamesTheQueueWhoseConsumerCannotBeBuilt(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "build membership consumer")
 }
+
+func TestBuildDeps_AFailureToCreateTheDeadLetterPublisherIsNamed(t *testing.T) {
+	t.Setenv("AWS_ACCESS_KEY_ID", "test")
+	t.Setenv("AWS_SECRET_ACCESS_KEY", "test")
+	cfg := depsConfig("../../config/topology.example.yaml")
+	t.Setenv("AWS_CA_BUNDLE", filepath.Join(t.TempDir(), "missing.pem"))
+
+	_, err := buildDeps(cfg, nopLogger{})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "dead-letter publisher")
+}

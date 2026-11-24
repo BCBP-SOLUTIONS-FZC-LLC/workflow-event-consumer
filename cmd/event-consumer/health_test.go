@@ -12,7 +12,7 @@ import (
 	"github.com/BCBP-SOLUTIONS-FZC-LLC/platform-gincommon/pkg/logger"
 
 	"github.com/BCBP-SOLUTIONS-FZC-LLC/workflow-events-consumer/internal/observability"
-	"github.com/BCBP-SOLUTIONS-FZC-LLC/workflow-events-consumer/internal/observability/obstest"
+	"github.com/BCBP-SOLUTIONS-FZC-LLC/workflow-events-consumer/test/obstest"
 )
 
 func TestHealthServer_ReportsAStalledReceive(t *testing.T) {

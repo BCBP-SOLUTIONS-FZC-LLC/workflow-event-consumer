@@ -13,9 +13,9 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/BCBP-SOLUTIONS-FZC-LLC/workflow-events-consumer/internal/forwarder"
-	"github.com/BCBP-SOLUTIONS-FZC-LLC/workflow-events-consumer/internal/observability/obstest"
 	"github.com/BCBP-SOLUTIONS-FZC-LLC/workflow-events-consumer/internal/topology"
 	"github.com/BCBP-SOLUTIONS-FZC-LLC/workflow-events-consumer/test/contract"
+	"github.com/BCBP-SOLUTIONS-FZC-LLC/workflow-events-consumer/test/obstest"
 )
 
 func TestMain(m *testing.M) {

@@ -15,8 +15,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/BCBP-SOLUTIONS-FZC-LLC/workflow-events-consumer/internal/forwarder"
-	"github.com/BCBP-SOLUTIONS-FZC-LLC/workflow-events-consumer/internal/observability/obstest"
 	"github.com/BCBP-SOLUTIONS-FZC-LLC/workflow-events-consumer/test/mocks"
+	"github.com/BCBP-SOLUTIONS-FZC-LLC/workflow-events-consumer/test/obstest"
 )
 
 func TestMain(m *testing.M) {
@@ -226,4 +226,33 @@ func TestMakeHandler_ADeadLetteredMessageIsNotCountedAsOK(t *testing.T) {
 
 	assert.Equal(t, before["dead_lettered"]+1, after["dead_lettered"])
 	assert.Equal(t, before["ok"], after["ok"])
+}
+
+func TestMakeHandler_WithNoSourceMessageAPermanentFailureIsRetriedAndNothingIsDeadLettered(t *testing.T) {
+	bad := mocks.NewDownstream()
+	defer bad.Close()
+	bad.SetStatus(http.StatusBadRequest)
+	dlq := &eventsmock.DLQPublisher{}
+	router := NewRouter(map[string][]string{"Evt": {"definition"}}, []string{"definition"})
+	handler := MakeHandler("membership", forwarder.New(forwarder.NewTarget("definition", bad.URL(), "", time.Second)), router, dlq)
+
+	err := handler(context.Background(), deadLetterEnvelope())
+
+	require.Error(t, err)
+	assert.True(t, forwarder.Permanent(err))
+	assert.Empty(t, dlq.Sent())
+}
+
+func TestMakeHandler_WithNoSourceMessageTheEnvelopeIsForwardedReEncoded(t *testing.T) {
+	d := mocks.NewDownstream()
+	defer d.Close()
+	router := NewRouter(map[string][]string{"Evt": {"definition"}}, []string{"definition"})
+	handler := MakeHandler("membership", forwarder.New(forwarder.NewTarget("definition", d.URL(), "", time.Second)), router, &eventsmock.DLQPublisher{})
+
+	require.NoError(t, handler(context.Background(), deadLetterEnvelope()))
+
+	received := d.Received()
+	require.Len(t, received, 1)
+	assert.Equal(t, "evt-9", received[0].ID)
+	assert.Equal(t, "Evt", received[0].Type)
 }

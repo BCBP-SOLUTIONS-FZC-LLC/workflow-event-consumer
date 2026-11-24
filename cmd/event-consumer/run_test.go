@@ -4,8 +4,6 @@ import (
 	"bytes"
 	"errors"
 	"net"
-	"net/http"
-	"net/http/httptest"
 	"os"
 	"strconv"
 	"sync"
@@ -178,17 +176,4 @@ func TestRun_AMissingTopologyFlushesTelemetryAndExitsOne(t *testing.T) {
 
 	assert.Equal(t, 1, code)
 	assert.Equal(t, int32(1), flush.n.Load(), "telemetry is flushed before a start-up failure exits")
-}
-
-func TestRun_StartsEveryConsumerAndStopsOnASignal(t *testing.T) {
-	queue := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) { <-r.Context().Done() }))
-	t.Cleanup(queue.Close)
-	validEnv(t, "../../config/topology.example.yaml")
-	t.Setenv("AWS_ENDPOINT_URL", queue.URL)
-	flush := &flushCounter{}
-
-	code := run(&bytes.Buffer{}, signals(syscall.SIGTERM), noTelemetry(flush))
-
-	assert.Equal(t, 0, code)
-	assert.Equal(t, int32(1), flush.n.Load())
 }

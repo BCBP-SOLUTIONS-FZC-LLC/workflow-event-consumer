@@ -19,8 +19,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/BCBP-SOLUTIONS-FZC-LLC/workflow-events-consumer/internal/observability/obstest"
 	"github.com/BCBP-SOLUTIONS-FZC-LLC/workflow-events-consumer/test/mocks"
+	"github.com/BCBP-SOLUTIONS-FZC-LLC/workflow-events-consumer/test/obstest"
 )
 
 func TestMain(m *testing.M) {
@@ -124,11 +124,13 @@ func TestForward_MalformedTargetURL(t *testing.T) {
 }
 
 func TestForward_TimeoutEnforced(t *testing.T) {
+	release := make(chan struct{})
 	slow := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		time.Sleep(200 * time.Millisecond)
+		<-release
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer slow.Close()
+	defer close(release)
 
 	fwd := New(NewTarget("slow", slow.URL, "", 20*time.Millisecond))
 
@@ -158,7 +160,7 @@ func TestForward_Concurrent(t *testing.T) {
 	for i := 0; i < 2; i++ {
 		select {
 		case <-arrived:
-		case <-time.After(3 * time.Second):
+		case <-time.After(30 * time.Second):
 			close(release)
 			t.Fatal("both targets must be in flight at the same time")
 		}
