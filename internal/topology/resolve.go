@@ -32,7 +32,7 @@ func (c Config) TargetNames() []string {
 
 func checkTargetAddr(addr string) error {
 	u, err := url.Parse(addr)
-	if err != nil || u.Host == "" {
+	if err != nil || u.Hostname() == "" {
 		return errors.New("must be an http or https URL")
 	}
 	switch u.Scheme {

@@ -50,6 +50,8 @@ func TestResolveTargets_OutsideDevAndLocalTakesHTTPSOrHTTPWithAPort(t *testing.T
 		{"ftp://execution.internal:21", true},
 		{"execution.internal:8080", true},
 		{"", true},
+		{"http://:8080", true},
+		{"https://:8443", true},
 	}
 	for _, tc := range cases {
 		cfg := testConfig()
