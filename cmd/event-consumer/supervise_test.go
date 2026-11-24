@@ -123,3 +123,25 @@ func TestSupervisor_ReportsAnExternalFailure(t *testing.T) {
 		t.Fatal("the failure was not reported")
 	}
 }
+
+type refusingStopConsumer struct{ *fakeConsumer }
+
+func (c refusingStopConsumer) Stop() error {
+	_ = c.fakeConsumer.Stop()
+	return errors.New("stop refused")
+}
+
+func TestSupervisor_AStopErrorIsWarnedAboutAndTheOthersAreStillStopped(t *testing.T) {
+	refusing := refusingStopConsumer{newFakeConsumer(nil)}
+	other := newFakeConsumer(nil)
+	log := &recordingLogger{}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	sup := superviseConsumers(ctx, []consumerLike{refusing, other}, log)
+	cancel()
+
+	require.NoError(t, sup.stop(time.Minute))
+	assert.True(t, log.hasWarning("consumer stop error"))
+	assert.True(t, other.stopped.Load())
+}
