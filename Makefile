@@ -45,7 +45,7 @@ PROMTOOL_IMAGE  ?= prom/prometheus:v3.15.0
 COVER_PKGS      := ./internal/...,./cmd/event-consumer
 
 .PHONY: contract-check contract-check-test metrics-lint metrics-inventory helm-lint helm-test lint-workflows pin-base-images all tools tools-integration setup install-hooks build test test-integration test-ci \
-        merge-coverage cover cover-func cover-html cover-check cover-gate cover-gate-pkg alerts-test \
+        merge-coverage cover cover-func cover-html cover-check cover-gate cover-gate-pkg alerts-test fuzz \
         tidy fmt-check fix check lint lint-fix arch-lint vuln \
         docker-build docker-build-mock-downstream docker-lint docker-trivy docker-check \
         clean help
@@ -190,6 +190,13 @@ cover-gate-pkg:
 
 ## cover-check: Run test-ci and gate on the global and per-package coverage floors
 cover-check: test-ci cover-gate
+
+## fuzz: Fuzz the topology loader, the target address check and the message handler, FUZZTIME each (default 1m); the seed inputs run in every `make test`
+FUZZTIME ?= 1m
+fuzz:
+	go test -run '^$$' -fuzz '^FuzzLoad_' -fuzztime $(FUZZTIME) ./internal/topology/
+	go test -run '^$$' -fuzz '^FuzzResolveTargets_' -fuzztime $(FUZZTIME) ./internal/topology/
+	go test -run '^$$' -fuzz '^FuzzMakeHandler_' -fuzztime $(FUZZTIME) ./internal/consumer/
 
 ## alerts-test: Unit-test the alert rules with promtool (a local promtool, else the Prometheus image)
 alerts-test:

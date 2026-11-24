@@ -108,6 +108,7 @@ make test-integration  # requires Docker; real LocalStack SNS and SQS
 make test-ci           # both suites, merged coverage over internal/ and cmd/event-consumer
 make cover-gate        # 97% overall and per package (lower floors in COVER_PKG_FLOORS), on the last test-ci profile
 make alerts-test       # promtool unit tests of deploy/monitoring/app-alerts.yml
+make fuzz              # fuzz the topology loader, the target address check and the message handler (FUZZTIME, default 1m each); their seeds run in make test
 make check             # format, lint (integration tag included), vet, import rules, the observability standard, the design-sync script's test, chart lint, the alert tests and the coverage gate
 make contract-check    # each copy in api/contracts matches its source (the source repo's same-named branch, else main) or differs only in ways that cannot break the routes this service calls (oasdiff, routes in SOURCES); needs GH_TOKEN, or CONTRACT_SRC_DIR=<checkout> with CONTRACT_SRC_REPO=<owner/repo> for one local source
 ```
