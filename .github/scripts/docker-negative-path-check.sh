@@ -8,9 +8,11 @@
 set -euo pipefail
 
 image="$1"
+name="negative-path-check-$$"
+trap 'docker rm -f "$name" >/dev/null 2>&1 || true' EXIT
 
 set +e
-output=$(timeout 60 docker run --rm "$image" 2>&1)
+output=$(timeout 60 docker run --rm --name "$name" "$image" 2>&1)
 exit_code=$?
 set -e
 

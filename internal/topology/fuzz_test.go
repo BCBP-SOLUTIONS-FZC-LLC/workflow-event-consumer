@@ -65,7 +65,7 @@ func FuzzLoad_AnAcceptedFileIsAlwaysAValidTopology(f *testing.F) {
 func FuzzResolveTargets_AnAddressAcceptedOutsideDevNamesAHostAndAnAllowedScheme(f *testing.F) {
 	for _, seed := range []string{
 		"https://execution.workflow.svc", "http://execution:8080", "http://execution", "ftp://x:21",
-		"https://", "http://:8080", "//host:80", "https://user@host", "HTTP://Host:1", "http://[::1]:8080", " https://x",
+		"https://", "http://:8080", "//host:80", "https://user@host", "HTTP://Host:1", "http://[::1]:8080", " https://x", "https://h?x", "https://h#f", "https://h/p", "http://h:0",
 	} {
 		f.Add(seed)
 	}
@@ -82,6 +82,9 @@ func FuzzResolveTargets_AnAddressAcceptedOutsideDevNamesAHostAndAnAllowedScheme(
 		}
 		if u.Host == "" || u.Hostname() == "" {
 			t.Fatalf("accepted %q with no host", addr)
+		}
+		if (u.Path != "" && u.Path != "/") || u.RawQuery != "" || u.Fragment != "" || u.Port() == "0" {
+			t.Fatalf("accepted %q, which carries a path, query, fragment or port 0", addr)
 		}
 		switch u.Scheme {
 		case "https":

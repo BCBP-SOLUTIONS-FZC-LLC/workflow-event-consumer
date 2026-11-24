@@ -52,6 +52,11 @@ func TestResolveTargets_OutsideDevAndLocalTakesHTTPSOrHTTPWithAPort(t *testing.T
 		{"", true},
 		{"http://:8080", true},
 		{"https://:8443", true},
+		{"https://execution.internal/", false},
+		{"https://execution.internal?x=1", true},
+		{"https://execution.internal#frag", true},
+		{"https://execution.internal/api", true},
+		{"http://execution.internal:0", true},
 	}
 	for _, tc := range cases {
 		cfg := testConfig()

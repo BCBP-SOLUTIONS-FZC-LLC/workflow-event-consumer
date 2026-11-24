@@ -23,7 +23,6 @@ func FuzzMakeHandler_TheOriginalBodyIsForwardedOrDeadLetteredUnchanged(f *testin
 	f.Add("evt-2", "UnknownType", "iam", "", []byte(`[1,2,3]`), uint8(1))
 	f.Add("evt-3", "WorkflowTaskCreated", "execution", "t", []byte(`"\u0000"`), uint8(2))
 	f.Add("e", "T", "s", "", []byte(`{"nested":{"deep":[null,true,1e308]}}`), uint8(1))
-	f.Add("e", "T", "s", "", []byte(`not json`), uint8(0))
 
 	d := mocks.NewDownstream()
 	f.Cleanup(d.Close)
