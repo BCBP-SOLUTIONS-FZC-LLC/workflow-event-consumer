@@ -51,10 +51,29 @@ func TestLoad_TargetsNeedNoToken(t *testing.T) {
 	assert.Equal(t, Target{Name: "t", Addr: "http://t:8080"}, cfg.Targets[0])
 }
 
-func TestLoad_DoesNotRejectUnknownFields_SoARetiredTokenEnvIsDropped(t *testing.T) {
-	cfg, err := Load(writeFile(t, "version: 1\ntargets: [{name: t, addr: http://t:8080, tokenEnv: OLD_TOKEN}]\nqueues: [{name: q, url: u}]\n"))
-	require.NoError(t, err)
-	assert.Equal(t, Target{Name: "t", Addr: "http://t:8080"}, cfg.Targets[0], "the loader does not reject unknown fields, so the retired tokenEnv is dropped")
+func TestLoad_RefusesAnUnknownOrMisspeltKey(t *testing.T) {
+	for name, content := range map[string]string{
+		"misspelt routes":       "version: 1\ntargets: [{name: t, addr: http://t:8080}]\nqueues: [{name: q, url: u}]\nroute:\n  Evt: [t]\n",
+		"unknown target field":  "version: 1\ntargets: [{name: t, addr: http://t:8080, tokenEnv: OLD_TOKEN}]\nqueues: [{name: q, url: u}]\n",
+		"unknown queue field":   "version: 1\ntargets: [{name: t, addr: http://t:8080}]\nqueues: [{name: q, url: u, dlq: d}]\n",
+		"unknown top-level key": "version: 1\ntargets: [{name: t, addr: http://t:8080}]\nqueues: [{name: q, url: u}]\nextra: true\n",
+	} {
+		t.Run(name, func(t *testing.T) {
+			_, err := Load(writeFile(t, content))
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "not found", "the error names the unknown field")
+		})
+	}
+}
+
+func TestLoad_RefusesAnyVersionOtherThanOne(t *testing.T) {
+	for name, header := range map[string]string{"missing": "", "zero": "version: 0\n", "later": "version: 2\n"} {
+		t.Run(name, func(t *testing.T) {
+			_, err := Load(writeFile(t, header+"targets: [{name: t, addr: http://t:8080}]\nqueues: [{name: q, url: u}]\n"))
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "version")
+		})
+	}
 }
 
 func TestLoad_MissingFile(t *testing.T) {
@@ -132,6 +151,7 @@ func TestValidate(t *testing.T) {
 
 func TestValidate_ExecutionOnlyReceivesCategorisedTypes(t *testing.T) {
 	cfg := Config{
+		Version: 1,
 		Targets: []Target{{Name: "execution", Addr: "https://e"}},
 		Queues:  []Queue{{Name: "q", URL: "u"}},
 		Routes:  map[string][]string{"SomeFutureEventType": {"execution"}},

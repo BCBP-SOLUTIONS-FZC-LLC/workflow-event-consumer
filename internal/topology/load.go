@@ -1,7 +1,10 @@
 package topology
 
 import (
+	"bytes"
+	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 
@@ -10,6 +13,8 @@ import (
 	"github.com/BCBP-SOLUTIONS-FZC-LLC/workflow-events-consumer/internal/forwarder"
 )
 
+const formatVersion = 1
+
 func Load(path string) (Config, error) {
 	raw, err := os.ReadFile(filepath.Clean(path))
 	if err != nil {
@@ -17,7 +22,9 @@ func Load(path string) (Config, error) {
 	}
 
 	var cfg Config
-	if err := yaml.Unmarshal(raw, &cfg); err != nil {
+	dec := yaml.NewDecoder(bytes.NewReader(raw))
+	dec.KnownFields(true)
+	if err := dec.Decode(&cfg); err != nil && !errors.Is(err, io.EOF) {
 		return Config{}, fmt.Errorf("topology: parsing %s: %w", path, err)
 	}
 
@@ -28,6 +35,9 @@ func Load(path string) (Config, error) {
 }
 
 func (c Config) validate() error {
+	if c.Version != formatVersion {
+		return fmt.Errorf("version must be %d, got %d", formatVersion, c.Version)
+	}
 	if len(c.Targets) == 0 {
 		return fmt.Errorf("at least one target is required")
 	}

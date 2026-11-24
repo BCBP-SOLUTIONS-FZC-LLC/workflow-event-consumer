@@ -73,8 +73,8 @@ file, and none are needed: every forwarded request carries `x-user-id: iam-syste
 
 Each target admits this service by its identity, not by a token: the forwarded
 request is the event body, unmodified, with the two identity headers (`x-user-id`, `x-tenant-roles`) and the trace
-context. A `topology.yaml` that still names the retired `tokenEnv` is read and
-the field is ignored.
+context. The topology file must say `version: 1` and hold only known keys; anything
+else fails start-up.
 
 AWS SDK credentials come from its default provider chain (IRSA / instance
 role in real environments); against LocalStack, set

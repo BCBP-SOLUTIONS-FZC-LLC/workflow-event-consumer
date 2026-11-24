@@ -61,7 +61,7 @@ func writeTopology(t *testing.T, body string) string {
 }
 
 func TestBuildDeps_RefusesATargetAddressThatIsNotSecureOutsideDev(t *testing.T) {
-	path := writeTopology(t, "targets:\n  - {name: a, addr: http://plain-host}\nqueues:\n  - {name: q, url: http://q}\n")
+	path := writeTopology(t, "version: 1\ntargets:\n  - {name: a, addr: http://plain-host}\nqueues:\n  - {name: q, url: http://q}\n")
 	cfg := depsConfig(path)
 	cfg.AppEnv = "prod"
 

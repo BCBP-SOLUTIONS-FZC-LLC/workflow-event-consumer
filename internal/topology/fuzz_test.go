@@ -18,8 +18,8 @@ func FuzzLoad_AnAcceptedFileIsAlwaysAValidTopology(f *testing.F) {
 	f.Add(example)
 	f.Add([]byte(validYAML))
 	f.Add([]byte("version: 1\ntargets: []\n"))
-	f.Add([]byte("targets:\n  - name: a\n    addr: x\nqueues:\n  - name: q\n    url: u\nroutes:\n  T: [a, a]\n"))
-	f.Add([]byte("targets:\n  - name: execution\n    addr: x\nqueues:\n  - name: q\n    url: u\nroutes:\n  NotCategorised: [execution]\n"))
+	f.Add([]byte("version: 1\ntargets:\n  - name: a\n    addr: x\nqueues:\n  - name: q\n    url: u\nroutes:\n  T: [a, a]\n"))
+	f.Add([]byte("version: 1\ntargets:\n  - name: execution\n    addr: x\nqueues:\n  - name: q\n    url: u\nroutes:\n  NotCategorised: [execution]\n"))
 	f.Add([]byte("route:\n  T: [nobody]\n"))
 	f.Add([]byte("{"))
 
@@ -31,6 +31,9 @@ func FuzzLoad_AnAcceptedFileIsAlwaysAValidTopology(f *testing.F) {
 		cfg, err := Load(path)
 		if err != nil {
 			return
+		}
+		if cfg.Version != 1 {
+			t.Fatalf("accepted a topology with version %d", cfg.Version)
 		}
 		if len(cfg.Targets) == 0 || len(cfg.Queues) == 0 {
 			t.Fatalf("accepted a topology with %d targets and %d queues", len(cfg.Targets), len(cfg.Queues))
