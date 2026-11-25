@@ -41,9 +41,9 @@ jobs:
           persist-credentials: false
 
       # docs_only is true when every changed file is documentation: Markdown,
-      # Mermaid, .claude/, docs/ (except the API spec under docs/swagger/ and the
-      # metric registry and runbooks under docs/observability/, which tests read) or
-      # LICENSE. The required checks then report skipped instead of running.
+      # Mermaid, .claude/, docs/ (except the API spec under docs/swagger/, the
+      # metric registry under docs/observability/ and docs/runbook.md, which tests
+      # read) or LICENSE. The required checks then report skipped instead of running.
       - id: docs
         env:
           BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
@@ -54,7 +54,7 @@ jobs:
             files="$(git diff --name-only "$BASE...$HEAD" 2>/dev/null)" && [ -n "$files" ]; then
             code="$(while read -r f; do
               case "$f" in
-                docs/swagger/* | docs/observability/*) echo "$f" ;;
+                docs/swagger/* | docs/observability/* | docs/runbook.md) echo "$f" ;;
                 *.md | *.mmd | .claude/* | docs/* | LICENSE) ;;
                 *) echo "$f" ;;
               esac
