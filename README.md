@@ -113,7 +113,7 @@ make check             # format, lint (integration tag included), vet, import ru
 make contract-check    # each copy in api/contracts matches its source (the source repo's same-named branch, else main) or differs only in ways that cannot break the routes this service calls (oasdiff, routes in SOURCES); needs GH_TOKEN, or CONTRACT_SRC_DIR=<checkout> with CONTRACT_SRC_REPO=<owner/repo> for one local source
 ```
 
-`make test` also runs `test/contract`: every event type the topology routes to the Definition Service or the Execution Service is forwarded through the real forwarder and held to that service's OpenAPI copy in `api/contracts/`.
+`make test` also runs `test/contract`: every event type the topology routes to the Definition Service, the Execution Service or the Stream Gateway is forwarded through the real forwarder and held to that service's OpenAPI copy in `api/contracts/`.
 
 `test/mocks` provides a reusable mock downstream (`mocks.Downstream`) used by the unit and integration tests; `cmd/mock-downstream` is a standalone binary used only by `docker compose up`. `test/obstest` reads metric values from the registry for tests in any package. No test waits on a sleep: each waits on the event it needs. CI also checks that the image exits non-zero when started without configuration.
 
