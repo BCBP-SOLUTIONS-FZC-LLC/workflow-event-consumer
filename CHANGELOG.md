@@ -8,6 +8,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.1.0] — 2026-11-26
+
 ### Changed
 
 - Tests and CI: start-up is split into a run step and a serve step, each tested on every exit path (bad configuration, telemetry failure, missing topology, a full start stopped by a signal, a consumer that stops with an error, a health port that cannot be bound, a consumer that outlives the grace period). No test waits on a sleep; the metric test helper moved to `test/obstest`. The coverage profile includes `cmd/event-consumer`, and the gate is 97% overall and per package (lower floors for `cmd/event-consumer` and `internal/observability` in `COVER_PKG_FLOORS`), up from 90% overall. `make alerts-test` unit-tests every alert rule with promtool and runs in `make check` and the quality job. The image job checks that the container exits non-zero with no configuration.
