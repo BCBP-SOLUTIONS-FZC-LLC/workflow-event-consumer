@@ -8,6 +8,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.1.0] — 2026-11-26
+
 ### Changed
 
 - The requests forwarded to the Stream Gateway are held to its OpenAPI document: `api/contracts/stream-gateway-openapi.yaml` is copied from the gateway (listed in `api/contracts/SOURCES`, checked by `make contract-check`), and the contract tests cover all three targets, including every status the gateway declares (LLD rev 1.17).
