@@ -26,6 +26,8 @@ func TestMain(m *testing.M) {
 var specs = map[string]string{
 	"definition": "../../api/contracts/definition-internal-openapi.yaml",
 	"execution":  "../../api/contracts/execution-internal-openapi.yaml",
+
+	"workflow-stream-gateway": "../../api/contracts/stream-gateway-openapi.yaml",
 }
 
 var permanentStatuses = []int{http.StatusBadRequest, http.StatusRequestEntityTooLarge, http.StatusUnprocessableEntity}
@@ -82,7 +84,7 @@ func forwardOnce(t *testing.T, spec *contract.Spec, target, eventType string, st
 }
 
 func TestForward_RequestsMatchTheTargetsSpec(t *testing.T) {
-	for _, target := range []string{"definition", "execution"} {
+	for _, target := range []string{"definition", "execution", "workflow-stream-gateway"} {
 		spec := contract.Load(t, specs[target])
 		for _, eventType := range routedTo(t, target) {
 			t.Run(target+"/"+eventType, func(t *testing.T) {
@@ -95,7 +97,7 @@ func TestForward_RequestsMatchTheTargetsSpec(t *testing.T) {
 }
 
 func TestForward_EveryDeclaredStatusIsClassified(t *testing.T) {
-	for _, target := range []string{"definition", "execution"} {
+	for _, target := range []string{"definition", "execution", "workflow-stream-gateway"} {
 		spec := contract.Load(t, specs[target])
 		for _, eventType := range routedTo(t, target) {
 			path, err := forwardOnce(t, spec, target, eventType, http.StatusOK)

@@ -42,12 +42,11 @@ module.exports = async function prSummary({ github, context }) {
     })
     .join("\n");
 
-  const allPassed = JOB_LABELS
+  const gate = jobResults["ci-gate"];
+  const allPassed = (!gate || gate.result === "success") && JOB_LABELS
     .filter(([id]) => jobResults[id])
     .every(([id]) => ["success", "skipped"].includes(jobResults[id].result));
-  const ranAny = JOB_LABELS
-    .filter(([id]) => jobResults[id])
-    .some(([id]) => jobResults[id].result === "success");
+  const ranAny = process.env.CI_SKIPPED === "false";
   const headline = !allPassed
     ? "❌ Some checks failed"
     : ranAny

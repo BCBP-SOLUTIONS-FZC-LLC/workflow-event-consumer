@@ -1,3 +1,4 @@
 # <copy> <owner/repo> <path in that repo> <commit the copy was taken at> [<routes this service calls, a regular expression>]
 definition-internal-openapi.yaml BCBP-SOLUTIONS-FZC-LLC/workflow-definition-service api/internal-openapi.yaml befa50c ^/api/v1/internal/events$
 execution-internal-openapi.yaml BCBP-SOLUTIONS-FZC-LLC/workflow-execution-service api/internal-openapi.yaml 59bd0db ^/api/v1/internal/events(/[a-z-]+)?$
+stream-gateway-openapi.yaml BCBP-SOLUTIONS-FZC-LLC/workflow-stream-gateway docs/swagger/openapi.yaml 2c2b779^/api/v1/internal/events$
